@@ -20,6 +20,7 @@ public class VolatileDemo {
                 }
             },String.valueOf(i)).start();
         }
+        //2的原因是main和GC线程，如果只有这俩，说明上面计算完了，最节约时间
         while (Thread.activeCount()>2){
             Thread.yield();
         }
