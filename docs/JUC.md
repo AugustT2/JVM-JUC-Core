@@ -48,6 +48,12 @@
 
 # JMM
 
+![image-20210401134920026](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401134920026.png)
+
+![image-20210401135010843](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401135010843.png)
+
+![image-20210401135127533](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401135127533.png)
+
 JMM是指Java**内存模型**，不是Java**内存布局**，不是所谓的栈、堆、方法区。
 
 每个Java线程都有自己的**工作内存**。操作数据，首先从主内存中读，得到一份拷贝，操作完毕后再写回到主内存。
@@ -184,6 +190,10 @@ y = x * x;  //语句4
 
 volatile底层是用CPU的**内存屏障**（Memory Barrier）指令来实现的，有两个作用，一个是保证特定操作的顺序性，二是保证变量的可见性。在指令之间插入一条Memory Barrier指令，告诉编译器和CPU，在Memory Barrier指令之间的指令不能被重排序。
 
+![image-20210401135824522](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401135824522.png)
+
+![image-20210401140041489](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401140041489.png)
+
 ## 哪些地方用到过volatile？
 
 ### 单例模式的安全问题
@@ -234,6 +244,8 @@ instance = memory;	 //3.设置引用地址
 
 CAS是指**Compare And Swap**，**比较并交换**，是一种很重要的同步思想。如果主内存的值跟期望值一样，那么就进行修改，否则一直重试，直到一致为止。
 
+![image-20210401153149751](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401153149751.png)
+
 ```java
 public class CASDemo {
     public static void main(String[] args) {
@@ -265,28 +277,53 @@ public final int getAndIncrement(){
 public final int getAnddAddInt(Object var1,long var2,int var4){
     int var5;
     do{
+        //这里的this就是unsafe对象，它能读到主内存的值
         var5 = this.getIntVolatile(var1, var2);
     } while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));
     return var5;
 }
 ```
 
-这个方法的var1和var2，就是根据**对象**和**偏移量**得到在**主内存的快照值**var5。然后`compareAndSwapInt`方法通过var1和var2得到当前**主内存的实际值**。如果这个**实际值**跟**快照值**相等，那么就更新主内存的值为var5+var4。如果不等，那么就一直循环，一直获取快照，一直对比，直到实际值和快照值相等为止。
+![image-20210401152640462](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401152640462.png)
+
+这个方法的var1和var2，就是根据**对象**和**内存偏移量**得到在**主内存的快照值**var5。然后`compareAndSwapInt`方法通过var1和var2得到当前**主内存的实际值**。如果这个**实际值**跟**快照值**相等，那么就更新主内存的值为var5+var4。如果不等，那么就一直循环，一直获取快照，一直对比，直到实际值和快照值相等为止。
 
 比如有A、B两个线程，一开始都从主内存中拷贝了原值为3，A线程执行到`var5=this.getIntVolatile`，即var5=3。此时A线程挂起，B修改原值为4，B线程执行完毕，由于加了volatile，所以这个修改是立即可见的。A线程被唤醒，执行`this.compareAndSwapInt()`方法，发现这个时候主内存的值不等于快照值3，所以继续循环，**重新**从主内存获取。
+
+![image-20210401152908917](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401152908917.png)
+
+```java
+//valueOffset 内存偏移量，就是内存地址，执行完静态代码块后，这个valueOffset就是变量value在主内存的地址值，可以以此来定位是哪个变量
+
+private static final Unsafe unsafe = Unsafe.getUnsafe();
+    private static final long valueOffset;
+
+    static {
+        try {
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicInteger.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+
+    private volatile int value;
+```
+
+
 
 ## CAS缺点
 
 CAS实际上是一种自旋锁，
 
-1. 一直循环，开销比较大。
+1. 一直循环，开销比较大（主内存的值一直被其他线程改动，那么当前线程要一直去循环取值比较）。
 2. 只能保证一个变量的原子操作，多个变量依然要加锁。
 3. 引出了**ABA问题**。
 
 # ABA问题
 
+![image-20210401172132007](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401172132007.png)
+
 所谓ABA问题，就是比较并交换的循环，存在一个**时间差**，而这个时间差可能带来意想不到的问题。比如线程T1将值从A改为B，然后又从B改为A。线程T2看到的就是A，但是**却不知道这个A发生了更改**。尽管线程T2 CAS操作成功，但不代表就没有问题。
-有的需求，比如CAS，**只注重头和尾**，只要首尾一致就接受。但是有的需求，还看重过程，中间不能发生任何修改，这就引出了`AtomicReference`原子引用。
+有的需求，比如CAS，**只注重头和尾**，只要首尾一致就接受。但是有的需求，还看重过程（挪用公款去炒股有还回来，有腐败），中间不能发生任何修改，这就引出了`AtomicReference`原子引用。
 
 ## AtomicReference
 
