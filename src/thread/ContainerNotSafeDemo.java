@@ -35,7 +35,7 @@ public class ContainerNotSafeDemo {
     }
 
     private static void listNotSafe() {
-        //List<String> list=new ArrayList<>();
+//        List<String> list=new ArrayList<>();
         List<String> list = new CopyOnWriteArrayList<>();
         for (int i = 1; i <= 30; i++) {
             new Thread(() -> {
