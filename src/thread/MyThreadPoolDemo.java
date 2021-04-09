@@ -7,30 +7,44 @@ import java.util.concurrent.*;
  */
 public class MyThreadPoolDemo {
     public static void main(String[] args) {
-        System.out.println("Fixed Thread Pool");
-        fixedThreadPool();
-        System.out.println("Single Thread Pool");
-        singleThreadPool();
-        System.out.println("Cached Thread Pool");
-        cachedThreadPool();
+        System.out.println(Runtime.getRuntime().availableProcessors());
+        System.out.println(Runtime.getRuntime().freeMemory());
+        System.out.println(Runtime.getRuntime().maxMemory());
+        System.out.println(Runtime.getRuntime().totalMemory());
+
+//        System.out.println("Fixed Thread Pool");
+//        fixedThreadPool();
+//        System.out.println("Single Thread Pool");
+//        singleThreadPool();
+//        System.out.println("Cached Thread Pool");
+//        cachedThreadPool();
         System.out.println("Custom Thread Pool");
         customThreadPool();
     }
 
+    //提供了4中策略：AbortPolicy,CallerRunsPolicy,DiscardOldestPolicy,DiscardPolicy
     private static void customThreadPool() {
         ExecutorService threadPool=
                 new ThreadPoolExecutor(2,
                         5,
-                        1L,
+                        100L,
                         TimeUnit.SECONDS,
                         new LinkedBlockingQueue<>(3),
                         Executors.defaultThreadFactory(),
-                        new ThreadPoolExecutor.AbortPolicy()
+                        new ThreadPoolExecutor.DiscardPolicy()
                 );
         try {
-            for (int i = 0; i < 9; i++) {
+            for (int i = 1; i <= 10; i++) {
+//                int finalI = i;
+                final int tempti = i;
                 threadPool.execute(() -> {
-                    System.out.println(Thread.currentThread().getName()+"\t办理业务");
+//                    System.out.println(Thread.currentThread().getName()+"\t办理业务"+ (finalI+1)+i);
+                    System.out.println(Thread.currentThread().getName()+"\t办理业务"+ tempti);
+                    try {
+                        TimeUnit.SECONDS.sleep(1);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 });
             }
 
