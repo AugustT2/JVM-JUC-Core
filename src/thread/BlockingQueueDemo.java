@@ -7,9 +7,9 @@ import java.util.concurrent.TimeUnit;
 public class BlockingQueueDemo {
     public static void main(String[] args) throws InterruptedException {
         BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(3);
-        addAndRemove(blockingQueue);
-        offerAndPoll(blockingQueue);
-        putAndTake(blockingQueue);
+//        addAndRemove(blockingQueue);
+//        offerAndPoll(blockingQueue);
+//        putAndTake(blockingQueue);
         outOfTime(blockingQueue);
     }
 
@@ -17,7 +17,11 @@ public class BlockingQueueDemo {
         System.out.println(blockingQueue.offer("a",2L, TimeUnit.SECONDS));
         System.out.println(blockingQueue.offer("a",2L, TimeUnit.SECONDS));
         System.out.println(blockingQueue.offer("a",2L, TimeUnit.SECONDS));
-        System.out.println(blockingQueue.offer("a",2L, TimeUnit.SECONDS));
+//        System.out.println(blockingQueue.offer("a",2L, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.poll(2, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.poll(2, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.poll(2, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.poll(2, TimeUnit.SECONDS));
     }
 
     private static void putAndTake(BlockingQueue<String> blockingQueue) throws InterruptedException {
