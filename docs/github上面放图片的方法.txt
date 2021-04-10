@@ -1,0 +1,10 @@
+自己写的makedown图片同步到github注意事项：
+1.本地地址是这样：
+[image-20210401134920026](C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\image-20210401134920026.png)
+2.需要替换的地址
+https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs/image-20210401134920026.png
+3.操作步骤：github上面建立一个文件夹myimgs来存放我们的本地图片，
+4.在md文件替换地址可以
+C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\
+https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs/
+5，完事
