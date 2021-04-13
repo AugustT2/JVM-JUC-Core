@@ -301,9 +301,61 @@ java.lang.OutOfMemoryError: GC overhead limit exceeded
 
 - 虚拟机加载的类信息
 - 常量池（这里的常量池指的是运行时常量池，而非字符串常量池（jdk1.6以后，字符串常量池放在了堆中））
+
+```java
+class常量池、字符串常量池和运行时常量池的区别
+https://blog.csdn.net/xiaojin21cen/article/details/105300521
+下面有一篇文章写的是比较好的
+http://blog.csdn.net/vegetable_bird_001/article/details/51278339
+
+1. String s1 = new String(“xyz”);
+
+考虑类加载阶段和实际执行时。
+（1）类加载对一个类只会进行一次。”xyz”在类加载时就已经创建并驻留了（如果该类被加载之前已经有”xyz”字符串被驻留过则不需要重复创建用于驻留的”xyz”实例）。驻留的字符串是放在全局共享的字符串常量池中的。
+（2）在这段代码后续被运行的时候，”xyz”字面量对应的String实例已经固定了，不会再被重复创建。所以这段代码将常量池中的对象复制一份放到heap中，并且把heap中的这个对象的引用交给s1 持有。
+这条语句创建了2个对象。
+
+String test = “a” + “b” + “c”;
+会创建几个字符串对象，在字符串常量池中保存几个引用么？
+
+答案是只创建了一个对象，在常量池中也只保存一个引用。
+看到了么，实际上在编译期间，已经将这三个字面量合成了一个。这样做实际上是一种优化，避免了创建多余的字符串对象，也没有发生字符串拼接问题。
+
+java.lang.String.intern()
+运行时常量池相对于CLass文件常量池的另外一个重要特征是具备动态性，Java语言并不要求常量一定只有编译期才能产生，也就是并非预置入CLass文件中常量池的内容才能进入方法区运行时常量池，运行期间也可能将新的常量放入池中，这种特性被开发人员利用比较多的就是String类的intern()方法。
+String的intern()方法会查找在常量池中是否存在一份equal相等的字符串,如果有则返回该字符串的引用,如果没有则添加自己的字符串进入常量池。
+
+public static void main(String[] args) {    
+            String str1 = "123";
+            String str2 = "123";
+
+            String a = new String("123");
+            String b = new String("123");;
+
+            System.out.println(str1 == str2);//true
+            System.out.println(a == b);//false
+
+
+            System.out.println(str1 == b);//false
+            String bb=b.intern();
+            System.out.println((str1== bb));//true
+}
+
+true
+false
+false
+true
+
+
+https://www.cnblogs.com/holos/p/6603379.html
+```
+
+
+
 - 静态变量（静态变量在方法区中，它引用的对象在堆里）
 
 ```java
+方法区和元空间是一回事吗？
 严格来说，不是。首先，方法区是JVM规范的一个概念定义，并不是一个具体的实现，每一个JVM的实现都可以有各自的实现；然后，在Java官方的HotSpot 虚拟机中，Java8版本以后，是用元空间来实现的方法区；在Java8之前的版本，则是用永久代实现的方法区；也就是说，“元空间” 和 “方法区”，一个是HotSpot 的具体实现技术，一个是JVM规范的抽象定义；所以，并不能说“JVM的元空间是方法区”，但是可以说在Java8以后的HotSpot 中“元空间用来实现了方法区”。然后多说一句，这个元空间是使用本地内存（Native Memory）实现的，也就是说它的内存是不在虚拟机内的，所以可以理论上物理机器还有多个内存就可以分配，而不用再受限于JVM本身分配的内存了
 
 作者：Butters
