@@ -477,7 +477,7 @@ Java 8可以将垃圾收集器分为四类。
 
 ### CMS收集器
 
-并发标记清除收集器，是一种以获得**最短GC停顿为**目标的收集器。适用在互联网或者B/S系统的服务器上，这类应用尤其重视服务器的**响应速度**，希望停顿时间最短。是`G1`收集器出来之前的首选收集器。使用**标清算法**。在GC的时候，会与用户线程并发执行，不会停顿用户线程。但是在**标记**的时候，仍然会**STW**。
+并发标记清除收集器，是一种以获得**最短GC停顿为**目标的收集器。适用在互联网或者B/S系统的服务器上，这类应用尤其重视服务器的**响应速度**，希望停顿时间最短。是`G1`收集器出来之前的首选收集器。使用**标清算法**。在GC的时候，会与用户线程并发执行，不会停顿用户线程。但是在**标记**的时候，仍然会**STW**（stop the world：使工作线程暂停，只允许GC线程）。
 
 使用`-XX:+UseConcMarkSweepGC`开启。开启过后，新生代默认使用`ParNew`，同时老年代使用`SerialOld`作为备用。
 
@@ -499,6 +499,16 @@ Java 8可以将垃圾收集器分为四类。
 1. 对CPU资源非常敏感：由于需要并发工作，多少会占用系统线程资源。
 2. 无法处理浮动垃圾：由于标记垃圾的时候，用户进程仍然在运行，无法有效处理新产生的垃圾。
 3. 产生内存碎片：由于使用**标清算法**，会产生内存碎片。
+
+![image-20210412215852300](C:\Users\Alex\AppData\Roaming\Typora\typora-user-images\image-20210412215852300.png)
+
+![image-20210412215740047](C:\Users\Alex\AppData\Roaming\Typora\typora-user-images\image-20210412215740047.png)
+
+### 如何选择+小总结
+
+![image-20210412220401750](C:\Users\Alex\AppData\Roaming\Typora\typora-user-images\image-20210412220401750.png)
+
+![image-20210412220443537](C:\Users\Alex\AppData\Roaming\Typora\typora-user-images\image-20210412220443537.png)
 
 ### G1收集器
 
@@ -524,11 +534,17 @@ Java 8可以将垃圾收集器分为四类。
 3. 最终标记。
 4. 筛选回收。
 
+### JVMGC结合SpringBoot微服务的生产部署和调参优化：
+
+公式：java -server jvm各种参数 -jar jar包或war包名字
+
+java -server -Xms1024 -Xmx1024G -XX:+UseG1GC -jar   xxx.jar
+
 # 附—Linux相关指令
 
 ## top
 
-主要查看`%CPU`、`%MEM`，还有`load average`。`load average`后面的三个数字，表示系统1分钟、5分钟、15分钟的平均负载值。如果三者平均值高于0.6，则复杂比较高了。当然，用`uptime`也可以查看。
+主要查看`%CPU`、`%MEM`，还有`load average`。`load average`后面的三个数字，表示系统1分钟、5分钟、15分钟的平均负载值。如果三者平均值高于0.6，则复杂比较高了。当然，用`uptime`也可以查看(简约版)。
 
 ## vmstat
 
