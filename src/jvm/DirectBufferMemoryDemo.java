@@ -11,6 +11,7 @@ public class DirectBufferMemoryDemo {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(6 * 1024 * 1024);
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(6000 * 1024 * 1024);
+        System.out.println("111111111111111");
     }
 }
