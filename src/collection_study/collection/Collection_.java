@@ -1,4 +1,4 @@
-package collection_study;
+package collection_study.collection;
 
 import java.util.*;
 
@@ -16,6 +16,7 @@ public class Collection_ {
         for (String s : list) {
             System.out.println(s);
         }
+//        System.out.println(list);
     }
 
 }
