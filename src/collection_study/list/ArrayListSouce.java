@@ -1,5 +1,8 @@
 package collection_study.list;
 
+import collection_study.set.Dog;
+import com.sun.xml.internal.ws.api.model.wsdl.WSDLOutput;
+
 import java.util.ArrayList;
 
 /**
@@ -16,5 +19,19 @@ public class ArrayListSouce {
         for (int i = 0; i <15; i++) {
             list.add(i);
         }
+
+        hello("nb", "plus", "jira");
+        //局部变量需要先初始化才能使用，否则编译不通过
+        int nb = 0;
+        System.out.println(nb);
     }
+
+    private static void hello(String... strings) {
+        for (int i = 0; i < strings.length; i++) {
+            System.out.println("第" + i + "个参数: \t" + strings[i]);
+        }
+    }
+
 }
+
+
