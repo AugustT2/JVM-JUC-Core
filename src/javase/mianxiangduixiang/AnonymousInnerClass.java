@@ -1,4 +1,4 @@
-package season3.mianxiangduixiang;
+package javase.mianxiangduixiang;
 
 /**
  * @author EDing3
