@@ -1,8 +1,5 @@
 package collection_study.list;
 
-import collection_study.set.Dog;
-import com.sun.xml.internal.ws.api.model.wsdl.WSDLOutput;
-
 import java.util.ArrayList;
 
 /**
