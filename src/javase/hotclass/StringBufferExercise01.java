@@ -1,4 +1,4 @@
-package hotclass;
+package javase.hotclass;
 
 /**
  * @author EDing3
