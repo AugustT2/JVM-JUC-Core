@@ -1,4 +1,4 @@
-package collection_study.map;
+package javase.collection_study.map;
 
 import java.util.Hashtable;
 

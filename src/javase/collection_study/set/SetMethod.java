@@ -1,4 +1,4 @@
-package collection_study.set;
+package javase.collection_study.set;
 
 import java.util.HashSet;
 import java.util.Set;

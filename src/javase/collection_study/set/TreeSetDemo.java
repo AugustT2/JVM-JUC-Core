@@ -1,4 +1,4 @@
-package collection_study.set;
+package javase.collection_study.set;
 
 import java.util.Comparator;
 import java.util.TreeSet;

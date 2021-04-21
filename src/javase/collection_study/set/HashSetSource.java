@@ -1,4 +1,4 @@
-package collection_study.set;
+package javase.collection_study.set;
 
 import java.math.BigDecimal;
 import java.util.HashSet;

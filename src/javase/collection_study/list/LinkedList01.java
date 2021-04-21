@@ -1,4 +1,4 @@
-package collection_study.list;
+package javase.collection_study.list;
 
 /**
  * @author EDing3

@@ -1,4 +1,4 @@
-package collection_study.collection;
+package javase.collection_study.collection;
 
 import java.util.ArrayList;
 import java.util.Collections;
