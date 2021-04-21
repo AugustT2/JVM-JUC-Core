@@ -31,6 +31,18 @@ public class EnumDemo {
 
 
 @SuppressWarnings("all")
+/**
+ * 1) 当我们使用 enum 关键字开发一个枚举类时， 默认会继承 Enum 类, 而且是一个 final 类[如何证明],老师使用 javap 工
+ * 具来演示
+ * 2) 传统的 public static final Season2 SPRING = new Season2("春天", "温暖"); 简化成 SPRING("春天", "温暖")， 这里必
+ * 须知道， 它调用的是哪个构造器.
+ * 3) 如果使用无参构造器 创建 枚举对象， 则实参列表和小括号都可以省略
+ * 4) 当有多个枚举对象时， 使用,间隔， 最后有一个分号结尾
+ * 5) 枚举对象必须放在枚举类的行首.
+ */
+enum SingleTon {
+    A;
+}
 enum Season {
     SPRING(1, "spring", "warm"),
     SUMMER(2, "summer", "hot"),
