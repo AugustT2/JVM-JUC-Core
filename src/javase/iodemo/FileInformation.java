@@ -1,4 +1,4 @@
-package javase.filedemo;
+package javase.iodemo;
 
 import java.io.File;
 
