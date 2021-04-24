@@ -17,6 +17,7 @@ public class TreeSetDemo {
         set.add("666");
         set.add("778");
         set.add("799");
+        set.add(null);
         System.out.println(set);
     }
 }
