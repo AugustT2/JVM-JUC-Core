@@ -86,6 +86,10 @@ class TigerWood<T, R, M> {
         return t;
     }
 
+    public <TT> T getTT(TT tt) {
+        return t;
+    }
+
     public void setT(T t) {
         this.t = t;
     }

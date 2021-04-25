@@ -21,6 +21,9 @@ public class EnumDemo {
         for (int i = 0; i < values.length; i++) {
             System.out.println(values[i]);
         }
+        for (Season value : Season.values()) {
+            System.out.println(value.ordinal()+"---"+value);
+        }
         System.out.println(Season.FALL.compareTo(Season.SPRING));
         System.out.println("==========");
 //        Enum

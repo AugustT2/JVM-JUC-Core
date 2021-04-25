@@ -12,6 +12,12 @@ public class FileCreate {
 //        create01();
         create03();
 
+        // File的两个常量
+
+        System.out.println(File.pathSeparator); // ;
+
+        System.out.println(File.separator); // \
+
     }
 
     //方式 1 new File(String pathname)
