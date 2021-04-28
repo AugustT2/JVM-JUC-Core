@@ -203,7 +203,7 @@ private final Node<K,V>[] initTable() {
 
 ##### 2.1、put加锁图解
 
-![](img/Snipaste_2020-05-16_12-04-08.jpg)
+![](https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs//Snipaste_2020-05-16_12-04-08.jpg)
 
 
 
@@ -369,7 +369,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
 #### 2、图解
 
-![](img/微信截图_20200516213316.png)
+![](https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs//微信截图_20200516213316.png)
 
 
 
@@ -465,7 +465,7 @@ private final void addCount(long x, int check) {
 
 #### 2、图解
 
-![](img/微信截图_20200516215323.png)
+![](https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs//微信截图_20200516215323.png)
 
 
 
@@ -658,7 +658,7 @@ private final void fullAddCount(long x, boolean wasUncontended) {
 
 > fullAddCount方法中，当as数组不为空的逻辑图解
 
-![](img/微信截图_20200516185407.png)
+![](https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs//微信截图_20200516185407.png)
 
 
 
