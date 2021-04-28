@@ -1,11 +1,31 @@
 package thread;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
+import java.util.ArrayList;
+import java.util.concurrent.*;
 
 public class CallableDemo {
     public static void main(String[] args) throws ExecutionException, InterruptedException {
+        int taskSize = 100;
+        ExecutorService pool = Executors.newFixedThreadPool(taskSize);
+        ArrayList<Future> list = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            Callable c = new MyThread();
+//            execute方法没有返回值
+//            pool.execute(new Runnable() {
+//                @Override
+//                public void run() {
+//
+//                }
+//            });
+            Future<Integer> future = pool.submit(c);
+            list.add(future);
+        }
+        pool.shutdown();
+        for (Future future : list) {
+            System.out.println(future.get());
+        }
+
+
         FutureTask<Integer> futureTask = new FutureTask<>(new MyThread());
         new Thread(futureTask, "AA").start();
         int result01 = 100;
