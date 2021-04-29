@@ -850,9 +850,9 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
 **（1） 内存泄漏相关概念**
 
-- Memory overflow:内存溢出，没有足够的内存提供申请者使用。
+- Memory overflow:**内存溢出**，没有足够的内存提供申请者使用。
 
-- Memory leak: 内存泄漏是指程序中已动态分配的堆内存由于某种原因程序未释放或无法释放，造成系统内存的浪费，导致程序运行速度减慢甚至系统崩溃等严重后果。内存泄漏的堆积终将导致内存溢出。
+- Memory leak: **内存泄漏**是指程序中**已动态分配的堆内存由于某种原因程序未释放或无法释放**，造成系统**内存的浪费**，导致程序运行速度减慢甚至系统崩溃等严重后果。内存泄漏的堆积终将导致内存溢出。
 
 **（2） 弱引用相关概念**
 
@@ -1021,7 +1021,7 @@ b. 关于& (INITIAL_CAPACITY - 1)
 
  计算hash的时候里面采用了hashCode & (size - 1)的算法，这相当于取模运算hashCode % size的一个更高效的实现。正是因为这种算法，我们要求size必须是2的整次幂，这也能保证在索引不越界的前提下，使得hash发生冲突的次数减小。
 
-（3） ThreadLocalMap中的set方法
+**（3） ThreadLocalMap中的set方法**
 
 ```java
 private void set(ThreadLocal<?> key, Object value) {
