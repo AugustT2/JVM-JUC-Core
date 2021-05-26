@@ -8,3 +8,16 @@ https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs/image-2021
 C:\Users\eding3\AppData\Roaming\Typora\typora-user-images\
 https://raw.githubusercontent.com/AugustT2/JVM-JUC-Core/master/myimgs/
 5，完事
+
+====优化后的方案====
+1.微信截图到md文档的目标处
+2.点击图片会出现地址，右键地址--选择复制文件到--选择笔记图片的目录地址，这个为了好看也可以重新命名
+    如：C:\java\springcloud-2020\doc\笔记\imgs\seata服务流程
+3.修改路径为相对路径即可。
+    \imgs\seata服务流程（imgs前的\要不要都可以）
+4.注意笔记的目录乘次是：
+    xxx笔记
+        --imgs(图片存放目录)
+        --a.md
+        --b.md
+====优化的方案，通过层级目录+图片别名+相对路径实现====
