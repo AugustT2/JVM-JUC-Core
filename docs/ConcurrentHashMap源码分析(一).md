@@ -10,17 +10,17 @@ Unsafe类相当于是一个java语言中的后门类，**提供了硬件级别�
 
 这里并不系统讲解Unsafe的所有功能，只介绍和接下来内容相关的操作
 
-`arrayBaseOffset`：获取数组的基础偏移量
+`arrayBaseOffset`：获取数组的<font color='red'>基础偏移量</font>
 
-`arrayIndexScale`：获取数组中元素的偏移间隔，要获取对应所以的元素，将索引号和该值相乘，获得数组中指定角标元素的偏移量
+`arrayIndexScale`：<font color='red'>获取数组中元素的偏移间隔</font>，要获取对应所以的元素，将索引号和该值相乘，获得数组中指定角标元素的偏移量
 
-`getObjectVolatile`：获取对象上的属性值或者数组中的元素
+`getObjectVolatile`：<font color='red'>获取对象上的属性值或者数组中的元素</font>
 
-`getObject`：获取对象上的属性值或者数组中的元素，已过时
+`getObject`：获取对象上的属性值或者数组中的元素，已过时·
 
-`putOrderedObject`：设置对象的属性值或者数组中某个角标的元素，更高效
+`putOrderedObject`：<font color='red'>设置对象的属性值或者数组中某个角标的元素，**更高效**</font>
 
-`putObjectVolatile`：设置对象的属性值或者数组中某个角标的元素
+`putObjectVolatile`：<font color='red'>设置对象的属性值或者数组中某个角标的元素</font>
 
 `putObject`：设置对象的属性值或者数组中某个角标的元素，已过时
 
@@ -60,7 +60,7 @@ public class Test02 {
 
 ##### 3.1、图解说明
 
-![](img/微信截图_20200417093442.png)
+![](../imgs/微信截图_20200417093442.png)
 
 
 
@@ -124,7 +124,7 @@ public ConcurrentHashMap(int initialCapacity,
 
 #### 2、图解
 
-![](img/微信截图_20200417101208.png)
+![](../imgs/微信截图_20200417101208.png)
 
 #### 3、Segment是什么？
 
@@ -355,9 +355,9 @@ public static void main(String[] args) throws Exception {
 
 ##### 2.1、多线程环境下的条件断点设置
 
-![](img/微信图片_20200417111509.png)
+![](../imgs/微信图片_20200417111509.png)
 
-![](img/微信截图_20200417111424.png)
+![](../imgs/微信截图_20200417111424.png)
 
 ##### 2.2、运行结果
 
@@ -365,7 +365,7 @@ public static void main(String[] args) throws Exception {
 >
 > 然后就可以分别让不同的线程向下执行，查看代码走向了。
 
-![](img/微信截图_20200417111834.png)
+![](../imgs/微信截图_20200417111834.png)
 
 
 
@@ -438,15 +438,15 @@ private void rehash(HashEntry<K,V> node) {
 
 > 图一
 
-![](img/微信截图_20200417113823.png)
+![](../imgs/微信截图_20200417113823.png)
 
 > 图二
 
-![](img/微信截图_20200417114240.png)
+![](../imgs/微信截图_20200417114240.png)
 
 > 图三
 
-![](img/微信截图_20200417114954.png)
+![](../imgs/微信截图_20200417114954.png)
 
 
 
