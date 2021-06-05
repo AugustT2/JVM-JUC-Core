@@ -410,7 +410,7 @@ public CopyOnWriteArraySet() {
 
 ### HashSet和HashMap
 
-`HashSet`底层是用`HashMap`实现的。既然是用`HashMap`实现的，那`HashMap.put()`需要传**两个参数**，而`HashSet.add()`只**传一个参数**，这是为什么？实际上`HashSet.add()`就是调用的`HashMap.put()`，只不过**Value**被写死了，是一个`private static final Object`对象。
+`HashSet`底层是用`HashMap`实现的。既然是用`HashMap`实现的，那`HashMap.put()`需要传**两个参数**，而`HashSet.add()`只**传一个参数**，这是为什么？实际上`HashSet.add()`就是调用的`HashMap.put()`，只不过**Value**被写死了，是一个`private static final Object PRESENT = new Object();`对象。
 
 ## Map
 
@@ -529,7 +529,7 @@ for (int i = 1; i <=6 ; i++) {
 
 **概念**：当阻塞队列为空时，获取（take）操作是阻塞的；当阻塞队列为满时，添加（put）操作是阻塞的。
 
-![](https://raw.githubusercontent.com/MaJesTySA/JVM-JUC-Core/master/imgs/BlockingQueue.png)
+![](../imgs/BlockingQueue.png)
 
 **好处**：阻塞队列不用手动控制什么时候该被阻塞，什么时候该被唤醒，简化了操作。
 
@@ -712,11 +712,11 @@ public static ExecutorService newCachedThreadPool() {
 
 **原理图**：上面银行的例子，实际上就是线程池的工作原理。
 
-![](https://raw.githubusercontent.com/MaJesTySA/JVM-JUC-Core/master/imgs/threadPool.png)
+![](../imgs/threadPool.png)
 
 **流程图**：
 
-![](https://raw.githubusercontent.com/MaJesTySA/JVM-JUC-Core/master/imgs/threadPoolProcedure.png)
+![](../imgs/threadPoolProcedure.png)
 
 新任务到达→
 
