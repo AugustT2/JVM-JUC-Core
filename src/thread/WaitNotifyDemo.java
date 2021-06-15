@@ -1,8 +1,10 @@
 package thread;
 
+import java.util.Arrays;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * @author EDing3
@@ -11,6 +13,9 @@ import java.util.concurrent.locks.ReentrantLock;
 public class WaitNotifyDemo {
     public static void main(String[] args) {
         lockAwaitSignal();
+        //利用java8优雅的遍历集合排除tom
+        Arrays.asList("tom","jerry","saonian", "frank","yaoyao", "tom").
+                stream().filter(e -> !e.equals("tom")).collect(Collectors.toList()).forEach(System.out::println);
     }
 
     static Lock lock = new ReentrantLock();
