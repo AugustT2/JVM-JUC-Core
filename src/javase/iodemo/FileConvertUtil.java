@@ -23,7 +23,7 @@ public class FileConvertUtil {
 
     //文件重命名：txt转为md
     private static void RenameTxtToMd() {
-        String path = "C:\\Users\\chuan2021\\Downloads\\guli-han个人笔记-21-05(勿传播)";
+        String path = "C:\\Users\\chuan2021\\Downloads\\谷粒21-10";
         File inputFile = new File(path);
         File[] files = inputFile.listFiles();
         for (File file : files) {
