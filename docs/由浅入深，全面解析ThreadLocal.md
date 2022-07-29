@@ -322,7 +322,7 @@ public class AccountService {
 
 **（2） 开启事务的注意点:**
 
-- 为了保证所有的操作在一个事务中,案例中使用的连接必须是同一个: service层开启事务的connection需要跟dao层访问数据库的connection保持一致
+- 为了保证所有的操作在一个事务中,**案例中使用的连接必须是同一个**: service层开启事务的connection需要跟dao层访问数据库的connection保持一致
 
 - 线程并发情况下, 每个线程只能操作各自的 connection
 
@@ -925,7 +925,7 @@ static class Entry extends WeakReference<ThreadLocal<?>> {
 
  事实上，在ThreadLocalMap中的set/getEntry方法中，会对key为null（也即是ThreadLocal为null）进行判断，如果为null的话，那么是会对value置为null的。
 
- **这就意味着使用完ThreadLocal，CurrentThread依然运行的前提下，就算忘记调用remove方法，弱引用比强引用可以多一层保障：弱引用的ThreadLocal会被回收，对应的value在下一次ThreadLocalMap调用set,get,remove中的任一方法的时候会被清除，从而避免内存泄漏。**
+ **<font color='red'>这就意味着使用完ThreadLocal，CurrentThread依然运行的前提下，就算忘记调用remove方法，弱引用比强引用可以多一层保障：弱引用的ThreadLocal会被回收，对应的value在下一次ThreadLocalMap调用set,get,remove中的任一方法的时候会被清除，从而避免内存泄漏</font>。**
 
 ### 5.3 hash冲突的解决
 

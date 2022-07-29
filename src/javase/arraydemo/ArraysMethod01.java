@@ -4,7 +4,20 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 public class ArraysMethod01 {
+    public static final String a ;
+    static {
+        a = "100";
+    }
+
+    public final String b;
+    {
+        b = "sss";
+    }
     public static void main(String[] args) {
+
+        final int c;
+        c = 100;
+//        c = 200;
         Integer[] integers = {1, 20, 90};
         //遍历数组
         // for(int i = 0; i < integers.length; i++) {
@@ -59,5 +72,27 @@ public class ArraysMethod01 {
         });
         System.out.println("===排序后===");
         System.out.println(Arrays.toString(arr));//
+
+        OutClass outClass = new OutClass();
+        outClass.outPrint(100);
+
+    }
+}
+
+class OutClass {
+
+    private int age = 12;
+
+    public void outPrint(final int x) {
+        final int  num = 20;
+        class InClass {
+            public void InPrint() {
+                System.out.println(x);
+                age = 20;
+                System.out.println(num);;
+                System.out.println(age);
+            }
+        }
+        new InClass().InPrint();
     }
 }
