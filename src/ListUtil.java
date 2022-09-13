@@ -4,6 +4,8 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 
@@ -47,7 +49,13 @@ public class ListUtil {
         String className=bundle.getString("ip");
         System.out.println(className);
 
+        for (int i = 0; i < 10; i++) {
+            System.out.println(Math.random());
+            int code = (int) ((Math.random() * 9 + 1) * 100000);
+            System.out.println(code);
+        }
 
+        System.out.println(System.currentTimeMillis());
     }
 
 
