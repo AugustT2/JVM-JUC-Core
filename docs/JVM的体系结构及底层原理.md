@@ -18,6 +18,10 @@
 
 然后，我们根据 JVM 体系结构图来阐述相关的知识点。
 
+**线程独占**:栈,本地方法栈,程序计数器 
+
+**线程共享**:堆,方法区  
+
 ## 2.类装载器 ClassLoader
 
 类装载器 ClassLoader 是负责加载class文件的，将class文件字节码内容加载到内存中，并将这些内容转换成方法区中的运行时数据结构。ClassLoader只负责文件的加载，至于它是否可运行，则由Execution Engine决定。
@@ -36,7 +40,7 @@ Tip：扩展一下，JVM并不仅仅只是通过检查文件后缀名是否是.c
 
 （1）虚拟机自带的加载器
 
-- 启动类加载器（Bootstrap），也叫根加载器，加载**%JAVAHOME%/jre/lib/rt.jar**。
+- 启动类加载器（Bootstrap），也叫根加载器，加载**%JAVAHOME%/jre/lib/rt.jar等*.jar**。
 - 扩展类加载器（Extension），加载**%JAVAHOME%/jre/lib/ext/*.jar**，例如javax.swing包。
 - 应用程序类加载器（AppClassLoader），也叫系统类加载器，加载**%CLASSPATH%**的所有类。
 
@@ -72,6 +76,45 @@ Tip：**rt.jar**是什么？做了哪些事？这些暂且不提，那你有没�
 ![img](https://img-blog.csdnimg.cn/20200722130535525.gif)
 
 ## 3.本地方法栈 Native Method Stack
+
+##### 本地方法栈（Native Method Stack）详解
+
+本地方法栈是 JVM 运行时数据区的一部分，主要用于支持本地方法（Native Method）的执行。以下是它的主要特点和存储内容：
+
+##### 存储内容
+
+1. **本地方法调用的栈帧**
+   - 存储本地方法的参数
+   - 保存本地方法的局部变量
+   - 存储方法调用的返回地址
+2. **本地方法执行状态**
+   - 方法调用的上下文信息
+   - 本地方法执行时的临时数据
+
+##### 与 Java 虚拟机栈的区别
+
+| 特性     | 本地方法栈           | Java 虚拟机栈                                   |
+| :------- | :------------------- | :---------------------------------------------- |
+| 服务对象 | 为本地方法服务       | 为 Java 方法服务                                |
+| 实现语言 | 通常由 C/C++ 实现    | 由 Java 实现                                    |
+| 存储内容 | 本地方法调用的栈帧   | Java 方法调用的栈帧                             |
+| 异常类型 | 可能抛出本地方法错误 | 可能抛出 StackOverflowError 或 OutOfMemoryError |
+| 内存管理 | 由本地方法实现管理   | 由 JVM 管理                                     |
+
+##### 重要特性
+
+1. **线程私有**：每个线程都有自己的本地方法栈
+2. **可选实现**：JVM 规范不强制要求实现本地方法栈
+3. **大小设置**：可以通过-Xss参数设置栈大小
+4. **内存溢出**：可能抛出StackOverflowError 或OutOfMemoryError
+
+##### 本地方法栈的工作流程
+
+1. Java 代码调用`native`方法
+2. JVM 在本地方法栈中创建新的栈帧
+3. 控制权转移到本地方法实现
+4. 本地方法执行期间使用本地方法栈
+5. 方法执行完毕，栈帧出栈，控制权返回给 Java 代码
 
 **本地方法接口（Native Interface）**，其作用是融合不同的编程语言为 Java 所用，它的初衷是用来融合 C/C++ 程序的，Java 诞生的时候是 C/C++ 流行时期，要想立足，就得调用 C/C++ 程序，于是 Java
 就在内存中专门开辟了一块区域处理标记为 native 的代码。
@@ -117,6 +160,197 @@ PC寄存器一般用以完成分支、循环、跳转、异常处理、线程恢
 对于栈来说，不存在垃圾回收的问题，只要线程一结束该栈就Over。
 
 ### 6.1 栈存储什么数据？
+
+#### Java 虚拟机栈（JVM Stack）详解
+
+##### 基本概念
+
+Java 虚拟机栈是线程私有的，它的生命周期与线程相同。每个方法在执行的同时都会创建一个栈帧（Stack Frame）用于存储局部变量表、操作数栈、动态链接、方法出口等信息。每个方法从调用直至执行完成的过程，就对应着一个栈帧在虚拟机栈中入栈到出栈的过程。
+
+##### 栈的核心特性
+
+1. **线程私有**：每个线程都有自己独立的虚拟机栈
+2. **后进先出（LIFO）**：方法的调用和返回遵循后进先出的原则
+3. **自动内存管理**：栈帧的创建和销毁由 JVM 自动管理
+4. **大小可配**：可以通过-Xss参数设置栈大小
+
+##### 栈帧（Stack Frame）结构
+
+###### 1. 局部变量表（Local Variable Table）
+
+- **存储内容**：<font color='red'>方法参数和局部变量</font>
+- **基本单位**：变量槽（Variable Slot）
+- 存储类型：
+  - 基本数据类型（boolean, byte, char, short, int, float, long, double）
+  - 对象引用（reference）
+  - returnAddress 类型（指向一条字节码指令的地址）
+- 特点：
+  - 局部变量表所需的内存空间在编译期间完成分配
+  - 方法运行期间不会改变局部变量表的大小
+
+###### 2. 操作数栈（Operand Stack）
+
+- **作用**：是栈帧（Stack Frame）中的一个后进先出（LIFO）的数据结构，用于<font color='red'>存储计算过程中的中间结果和临时变量</font>
+- 特点：
+  - 操作数栈的最大深度在编译期已经确定
+  - 32位数据类型占1个栈容量，64位数据类型占2个栈容量
+- 操作：
+  - 入栈（push）
+  - 出栈（pop）
+  - 复制（dup）
+  - 交换（swap）
+
+示例1：简单的加法运算
+
+```
+javapublic int add() {
+    int a = 10;
+    int b = 20;
+    int c = a + b;
+    return c;
+}
+```
+
+字节码分析：
+
+```
+java0: bipush        10  // 将10压入操作数栈
+2: istore_1          // 将栈顶的10存入局部变量表索引1(a)
+3: bipush        20  // 将20压入操作数栈
+5: istore_2          // 将栈顶的20存入局部变量表索引2(b)
+6: iload_1           // 将局部变量表索引1的值(10)压入操作数栈
+7: iload_2           // 将局部变量表索引2的值(20)压入操作数栈
+8: iadd              // 弹出栈顶两个int值相加，结果(30)压入栈顶
+9: istore_3          // 将栈顶结果30存入局部变量表索引3(c)
+10: iload_3          // 将局部变量表索引3的值(30)压入操作数栈
+11: ireturn          // 返回栈顶的int值
+```
+
+###### 3. 动态链接（Dynamic Linking）
+
+- **作用**：将符号引用转换为直接引用
+
+- 代码示例
+
+```java
+javapublic class DynamicLinkingDemo {
+    public static void main(String[] args) {
+        Animal animal = new Dog();  // 多态
+        animal.sayHello();          // 动态绑定
+    }
+}
+
+class Animal {
+    public void sayHello() {
+        System.out.println("Animal says hello");
+    }
+}
+
+class Dog extends Animal {
+    @Override
+    public void sayHello() {
+        System.out.println("Dog says wang wang");
+    }
+}
+动态链接的工作过程
+编译期：生成.class文件时，所有变量和方法引用都作为符号引用保存在class文件的常量池中
+类加载：类加载阶段将符号引用解析为直接引用（静态解析）
+运行期：对于虚方法调用，在方法第一次执行时解析（静态解析）
+```
+
+- 组成：
+  - 运行时常量池的引用
+  - 方法返回地址
+  - 异常表
+
+###### 4. 方法返回地址
+
+方法返回地址是栈帧（Stack Frame）中的一个重要组成部分，它保存了方法执行完成后应该返回到调用者的位置信息。
+
+方法返回地址是指**方法退出后返回到方法被调用位置的地址**，它告诉JVM方法执行完成后应该继续执行哪条指令。
+
+- **正常返回**：调用者的PC计数器的值
+- **异常返回**：通过异常处理器表确定
+- 特点：方法退出时可能执行的操作
+  - 恢复上层方法的局部变量表和操作数栈
+  - 把返回值压入调用者栈帧的操作数栈
+  - 调整PC计数器的值
+
+##### 栈的异常
+
+1. **StackOverflowError**
+
+   - 原因：线程请求的栈深度大于虚拟机所允许的最大深度
+   - 常见场景：递归调用没有正确的终止条件
+
+   ```
+   javapublic class StackOverflowExample {
+       public static void recursiveCall() {
+           recursiveCall();  // 无限递归
+       }
+       public static void main(String[] args) {
+           recursiveCall();
+       }
+   }
+   ```
+
+2. **OutOfMemoryError**
+
+   - 原因：虚拟机栈可以动态扩展，当扩展时无法申请到足够的内存
+   - 场景：创建过多线程
+
+##### 栈的性能优化
+
+1. **逃逸分析**
+   - 对象在方法内部创建且不会逃逸到方法外部
+   - JIT 编译器可能会进行栈上分配（Stack Allocation）
+2. **方法内联**
+   - 将方法调用直接替换为方法体
+   - 减少方法调用的开销
+3. **栈帧复用**
+   - 栈帧可以在方法调用之间重用
+   - 减少栈帧的创建和销毁开销
+
+##### 实际应用示例
+
+```java
+public class StackExample {
+    public static void main(String[] args) {
+        int a = 1;
+        int b = 2;
+        int result = add(a, b);
+        System.out.println("Result: " + result);
+    }
+
+    public static int add(int x, int y) {
+        int sum = x + y;
+        return sum;
+    }
+}
+```
+
+##### 栈的监控与调优
+
+1. **查看栈信息**
+
+   ```
+   bash# 查看线程栈信息
+   jstack <pid>
+   
+   # 查看JVM栈大小
+   java -XX:+PrintFlagsFinal -version | grep ThreadStackSize
+   ```
+
+2. **设置栈大小**
+
+   ```
+   bash# 设置栈大小为1MB
+   java -Xss1m YourMainClass
+   ```
+
+##### 总结
+
+Java 虚拟机栈是理解 Java 方法执行、异常处理、多线程等核心概念的基础。合理设置栈大小、避免栈溢出、理解栈帧结构对于编写高效、健壮的 Java 程序至关重要。
 
 栈主要存储**8种基本类型的变量**、**对象的引用变量**、以及**实例方法**。
 
@@ -232,6 +466,10 @@ Survivor 1 Space，幸存者1区，也叫to区。
 
 ```text
 这样也是为了保证内存中没有碎片，所以Survivor 0 Space和Survivor 1 Space有一个要是空的。
+
+首次GC: Eden → S0（From）  
+第二次GC: Eden + S0 → S1（To） → 交换为S1（From）/S0（To）  
+第三次GC: Eden + S1 → S0（To） → 交换为S0（From）/S1（To）  
 ```
 
 ### 8.4 HotSpot虚拟机的内存管理
@@ -269,6 +507,114 @@ Survivor 1 Space，幸存者1区，也叫to区。
 
 因此，默认情况下，元空间的大小仅受本地内存限制。
 **类的元数据**放入**native memory**，**字符串池和类的静态变量**放入Java**堆**中，这样可以加载多少类的元数据就不再由MaxPermSize控制, 而由系统的实际可用空间来控制。
+
+#### 方法区、永久代和元空间的区别
+
+###### 1. 方法区 (Method Area)
+
+- **概念**：JVM 规范中定义的一个逻辑区域，用于存储类信息、常量、静态变量、即时编译器编译后的代码等
+- 特点：
+  - 是 JVM 规范的一部分
+  - 所有 JVM 实现都必须有方法区
+  - 规范没有规定具体的实现方式和位置
+
+###### 2. 永久代 (PermGen, Permanent Generation)
+
+- **概念**：HotSpot 虚拟机对方法区的一种实现方式（JDK 7 及之前）
+- 特点：
+  - 位于堆内存中（非堆）
+  - 大小固定，通过-XX:MaxPermSize设置
+  - 存储内容：
+    - 类信息
+    - 运行时常量池
+    - 字符串常量池（JDK 6 及之前）
+    - 类静态变量
+    - JIT 编译后的代码
+- 问题：
+  - 容易发生java.lang.OutOfMemoryError: PermGen space
+  - 大小难以预测，调优困难
+
+###### 3. 元空间 (Metaspace)
+
+- **概念**：JDK 8 引入，替代永久代的方法区实现
+- 特点：
+  - 使用本地内存（Native Memory）而非 JVM 堆内存
+  - 默认不限制大小（受限于系统内存）
+  - 通过-XX:MaxMetaspaceSize设置上限
+  - 存储内容：
+    - 类元数据
+    - 运行时常量池
+    - **字符串常量池（移至堆中）**
+    - **类静态变量（移至堆中）**
+- 优势：
+  - 避免永久代内存溢出
+  - 自动调整大小
+  - 提高 GC 效率
+  - 简化 Full GC 过程
+
+#### 三者的关系
+
+```
+JVM 规范
+   ↓
+方法区（逻辑概念）
+   ├── 永久代（JDK 7 及之前，HotSpot 实现）
+   └── 元空间（JDK 8+，HotSpot 实现）
+```
+
+#### 重要变化
+
+1. **JDK 7**：
+   - 将字符串常量池从永久代移动到了堆中
+2. **JDK 8**：
+   - 完全移除了永久代
+   - 引入元空间
+   - 将类静态变量和字符串常量池移到了堆中
+
+#### 相关 JVM 参数
+
+- **永久代**：
+
+  - -XX:PermSize：初始大小
+
+  - ```
+    -XX:MaxPermSize
+    ```
+
+    ：最大大小
+
+- **元空间**：
+
+  - ```
+    -XX:MetaspaceSize
+    ```
+
+    ：初始大小
+
+  - ```
+    -XX:MaxMetaspaceSize
+    ```
+
+    ：最大大小（默认无限制）
+
+  - ```
+    -XX:MinMetaspaceFreeRatio
+    ```
+
+    ：GC 后最小元空间空闲比例
+
+  - ```
+    -XX:MaxMetaspaceFreeRatio
+    ```
+
+    ：GC 后最大元空间空闲比例
+
+#### 总结
+
+- **方法区**是 JVM 规范中的概念
+- **永久代**是方法区在 JDK 7 及之前的实现
+- **元空间**是 JDK 8 及之后方法区的实现
+- 元空间使用本地内存，避免了永久代的内存溢出问题，并提供了更好的性能
 
 ### 8.6 堆参数调优
 

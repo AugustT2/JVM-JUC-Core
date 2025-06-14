@@ -23,17 +23,19 @@ public class BaseTest {
         System.out.println(i1==i2);  //true
         System.out.println(i3==i4);  //false
 
-        Double d1 = 1.0;
+/*        Double d1 = 1.0;
 
         Object object = null;
         System.out.println(new Object().equals(object));
         boolean equalsNull = object.equals(new Object());
-        System.out.println(equalsNull);
+        System.out.println(equalsNull);*/
 
         ArrayList<Object> list = new ArrayList<>();
 
         HashMap<Object, Object> map = new HashMap<>();
         Hashtable<String, String> table = new Hashtable<>();
+
+        System.out.println(3*0.1==0.3);
 
     }
 }
