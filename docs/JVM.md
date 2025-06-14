@@ -252,6 +252,130 @@
 
 弱引用、虚引用被回收后，会被放到引用队列里面，通过`poll`方法可以得到。关于引用队列和弱、虚引用的配合使用，见[ReferenceQueueDemo](https://github.com/MaJesTySA/JVM-JUC-Core/blob/master/src/jvm/ReferenceQueueDemo.java)。
 
+### 引用队列（ReferenceQueue）中的内容
+
+引用队列（ReferenceQueue）中存储的是**被垃圾回收的引用对象本身**（即Reference对象），而不是被引用的实际对象。具体来说：
+
+### 引用队列中存储的内容
+
+1. **引用对象**：SoftReference、WeakReference、PhantomReference或FinalReference的实例
+2. **存储时机**：当被引用的对象被垃圾回收后，其对应的引用对象会被放入队列
+3. **不包含**：被引用的实际对象（这些对象已经被回收或即将被回收）
+
+### 引用类型与队列行为
+
+| 引用类型           | 进入队列时机 | 典型用途               |
+| :----------------- | :----------- | :--------------------- |
+| `SoftReference`    | 内存不足时   | 内存敏感缓存           |
+| `WeakReference`    | 下一次GC时   | 规范化映射、弱缓存     |
+| `PhantomReference` | 对象被回收后 | 资源清理、对象回收跟踪 |
+| `FinalReference`   | 对象被回收前 | finalize方法调用       |
+
+### 使用示例
+
+```java
+import java.lang.ref.*;
+
+public class ReferenceQueueExample {
+    public static void main(String[] args) {
+        // 创建引用队列
+        ReferenceQueue<Object> queue = new ReferenceQueue<>();
+        
+        // 创建一个大对象
+        Object largeObject = new byte[10 * 1024 * 1024]; // 10MB
+        
+        // 创建弱引用，并关联引用队列
+        WeakReference<Object> weakRef = new WeakReference<>(largeObject, queue);
+        
+        // 取消强引用
+        largeObject = null;
+        
+        // 强制GC
+        System.gc();
+        
+        try {
+            // 从队列中获取被回收的引用
+            Reference<?> ref = queue.remove(1000); // 等待1秒
+            if (ref != null) {
+                System.out.println("引用被回收: " + ref);
+                // ref.get() 返回null，因为对象已被回收
+                System.out.println("引用的对象: " + ref.get());
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 实际应用场景
+
+1. **资源清理**：当对象被回收后执行清理操作
+
+   ```java
+   // 伪代码示例
+   public class ResourceCleaner {
+       private static final ReferenceQueue<Resource> queue = new ReferenceQueue<>();
+       private static final Set<ResourceReference> references = new HashSet<>();
+       
+       public static void register(Resource resource, CleanupTask task) {
+           references.add(new ResourceReference(resource, queue, task));
+           // 启动清理线程
+           cleanUp();
+       }
+       
+       private static void cleanUp() {
+           // 检查队列并执行清理任务
+           Reference<?> ref;
+           while ((ref = queue.poll()) != null) {
+               if (ref instanceof ResourceReference) {
+                   ((ResourceReference) ref).cleanup();
+                   references.remove(ref);
+               }
+           }
+       }
+   }
+   ```
+
+2. **缓存实现**：实现自动清理的缓存
+
+   ```java
+   public class SimpleCache<K, V> {
+       private final Map<K, V> cache = new HashMap<>();
+       private final ReferenceQueue<V> queue = new ReferenceQueue<>();
+       
+       public void put(K key, V value) {
+           // 清理已被回收的条目
+           cleanUp();
+           cache.put(key, new SoftReference<>(value, queue));
+       }
+       
+       public V get(K key) {
+           cleanUp();
+           SoftReference<V> ref = (SoftReference<V>) cache.get(key);
+           return ref != null ? ref.get() : null;
+       }
+       
+       private void cleanUp() {
+           Reference<?> ref;
+           while ((ref = queue.poll()) != null) {
+               // 从缓存中移除已被回收的条目
+               cache.values().removeIf(value -> value == ref);
+           }
+       }
+   }
+   ```
+
+### 注意事项
+
+1. 非阻塞检查：poll()方法是非阻塞的，如果没有可用引用会立即返回null
+2. 阻塞获取：remove()方法会阻塞直到有引用可用，可以设置超时时间
+3. 线程安全：ReferenceQueue是线程安全的
+4. **空队列**：新创建的引用队列是空的
+5. **一次性消费**：引用对象从队列中移除后不会再次入队
+
+**引用队列是Java中实现资源清理和缓存管理的重要机制，特别是在处理大对象或需要精细控制内存使用的场景中非常有用**。
+
 # OutOfMemoryError
 
 ## StackOverflowError

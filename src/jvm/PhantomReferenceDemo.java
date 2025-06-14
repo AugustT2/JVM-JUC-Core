@@ -9,6 +9,7 @@ public class PhantomReferenceDemo {
         ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
         PhantomReference phantomReference = new PhantomReference(o1, referenceQueue);
         System.out.println(o1);
+        System.out.println(phantomReference);
         System.out.println(phantomReference.get());
         System.out.println(referenceQueue.poll());
 
@@ -19,6 +20,7 @@ public class PhantomReferenceDemo {
         Thread.sleep(500);
         System.out.println(o1);
         System.out.println(phantomReference.get());
+        //referenceQueue里面放的是phantomReference对象，打印的值和System.out.println(phantomReference);是一样的
         System.out.println(referenceQueue.poll());
     }
 }
