@@ -10,10 +10,10 @@ import java.util.stream.Collector;
 
 public class ContainerNotSafeDemo {
     public static void main(String[] args) {
-        listNotSafe();
-        setNoSafe();
-        mapNotSafe();
-//        testListNotSafe();
+//        listNotSafe();
+//        setNoSafe();
+//        mapNotSafe();
+        testListNotSafe();
     }
 
     private static void mapNotSafe() {
@@ -51,8 +51,14 @@ public class ContainerNotSafeDemo {
 
     private static void  testListNotSafe() {
 //        ArrayList<String> list = new ArrayList<>();
+        /**
+         * 当多个线程同时修改 ArrayList 时（比如一个线程在添加元素，另一个线程在遍历），就会抛出 ConcurrentModificationException
+         * System.out.println(list) 会调用 ArrayList 的 toString() 方法
+         * toString() 方法内部会使用迭代器遍历列表
+         * 如果在遍历过程中其他线程修改了列表，就会抛出异常
+         */
         List<String> list = Collections.synchronizedList(new ArrayList<>());
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 30; i++) {
             new Thread(()-> {
                 list.add(UUID.randomUUID().toString().substring(0,8));
                 System.out.println(Thread.currentThread().getName() + "\t" + list);

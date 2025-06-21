@@ -469,6 +469,80 @@ while (!atomicReference.compareAndSet(null, thread)) { }
 
 [ReadWriteLockDemo](https://github.com/MaJesTySA/JVM-JUC-Core/blob/master/src/thread/ReadWriteLockDemo.java)
 
+读锁（共享锁）的存在确实允许多个线程同时获取读锁，但它的主要用途在于提供**读写互斥**和**写写互斥**的保证。让我详细解释为什么需要读锁：
+
+### 读锁的核心作用
+
+1. **防止脏读**
+
+```java
+// 没有读锁的情况下
+if (map.containsKey(key)) {  // 线程A检查key存在
+    // 此时线程B可能删除了这个key
+    map.get(key);  // 可能抛出空指针异常
+}
+```
+
+1. **保证内存可见性** 读锁确保在获取锁时，会强制从主内存读取最新值，而不是使用线程本地缓存。
+2. **读写互斥**
+
+```java
+// 线程A获取读锁
+readLock.lock();
+try {
+    // 线程B可以同时获取读锁
+    // 但线程C尝试获取写锁会被阻塞
+} finally {
+    readLock.unlock();
+}
+```
+
+### 实际应用场景
+
+```java
+class Cache {
+    private final Map<String, Object> cache = new HashMap<>();
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+
+    public Object get(String key) {
+        rwLock.readLock().lock();  // 获取读锁
+        try {
+            return cache.get(key);
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
+    public void put(String key, Object value) {
+        rwLock.writeLock().lock();  // 获取写锁
+        try {
+            cache.put(key, value);
+        } finally {
+            rwLock.writeLock().unlock();
+        }
+    }
+}
+```
+
+### 为什么需要读锁
+
+1. **一致性视图**：确保在读取数据时，数据不会被其他线程修改
+2. **内存屏障**：建立 happens-before 关系，保证可见性
+3. **避免ABA问题**：防止在两次读取之间值被修改又改回原值
+
+### 没有读锁会怎样？
+
+```java
+// 没有读锁的情况下
+if (cache.containsKey("user1")) {  // 线程A检查
+    // 线程B可能在这里删除或修改了 "user1"
+    Object value = cache.get("user1");  // 可能获取到错误的值或null
+    process(value);  // 使用过期的值处理
+}
+```
+
+所以，读锁虽然允许多个线程同时读取，但它的真正价值在于与写锁的配合，确保在并发环境下的数据一致性和线程安全性。
+
 ## Synchronized和Lock的区别
 
 `synchronized`关键字和`java.util.concurrent.locks.Lock`都能加锁，两者有什么区别呢？
@@ -499,9 +573,255 @@ while (!atomicReference.compareAndSet(null, thread)) { }
 
 关于`CountDownLatch`和枚举类的使用，请看[CountDownLatchDemo](https://github.com/MaJesTySA/JVM-JUC-Core/blob/master/src/thread/CountDownLatchDemo.java)。
 
+### 实际应用场景
+
+#### 1. 多任务并行处理，等待所有任务完成
+
+```java
+public class ParallelTask {
+    public static void main(String[] args) throws InterruptedException {
+        int taskCount = 5;
+        CountDownLatch latch = new CountDownLatch(taskCount);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        
+        for (int i = 0; i < taskCount; i++) {
+            final int taskId = i;
+            executor.submit(() -> {
+                try {
+                    System.out.println("任务" + taskId + "开始执行");
+                    Thread.sleep(1000); // 模拟任务执行
+                    System.out.println("任务" + taskId + "执行完成");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+        
+        // 等待所有任务完成
+        latch.await();
+        System.out.println("所有任务执行完成");
+        executor.shutdown();
+    }
+}
+```
+
+#### 2. 模拟并发测试
+
+```java
+public class ConcurrentTest {
+    public static void main(String[] args) throws InterruptedException {
+        int threadCount = 100;
+        CountDownLatch startSignal = new CountDownLatch(1);
+        CountDownLatch doneSignal = new CountDownLatch(threadCount);
+        
+        for (int i = 0; i < threadCount; i++) {
+            new Thread(() -> {
+                try {
+                    startSignal.await(); // 等待开始信号
+                    // 执行业务逻辑
+                    doWork();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    doneSignal.countDown();
+                }
+            }).start();
+        }
+        
+        // 所有线程准备就绪，同时开始执行
+        startSignal.countDown();
+        // 等待所有线程执行完成
+        doneSignal.await();
+        System.out.println("所有线程执行完成");
+    }
+    
+    private static void doWork() {
+        // 模拟业务逻辑
+        System.out.println(Thread.currentThread().getName() + " 正在处理...");
+    }
+}
+```
+
+#### 注意事项
+
+1. 计数器必须大于等于0
+2. 计数器不能重置（如果需要重置，考虑使用CyclicBarrier）
+3. countDown()方法应该放在finally块中，确保一定会被执行
+4. 避免死锁，确保计数器最终会变为0CountDownLatch是一个非常实用的并发工具类，特别适合"主线程等待多个子线程完成任务"或"多个子线程等待主线程发出开始信号"这样的场景。
+
 ## CyclicBarrier
 
 `CountDownLatch`是减，而`CyclicBarrier`是加，理解了`CountDownLatch`，`CyclicBarrier`就很容易。比如召集7颗龙珠才能召唤神龙，详见[CyclicBarrierDemo](https://github.com/MaJesTySA/JVM-JUC-Core/blob/master/src/thread/CyclicBarrierDemo.java)。
+
+### CyclicBarrier 使用指南
+
+CyclicBarrier是 Java 并发包中的一个同步辅助类，它允许一组线程互相等待，直到到达某个公共屏障点。与 CountDownLatch不同，CyclicBarrier
+
+ 可以重用。
+
+### 核心概念
+
+- **屏障点（Barrier）**：所有线程必须等待的点
+- **方数（Parties）**：必须调用await()的线程数量
+- **重置**：当所有线程到达屏障点后，可以重置计数器继续使用
+
+### 基本使用
+
+```java
+public class CyclicBarrierDemo {
+    public static void main(String[] args) {
+        // 创建CyclicBarrier，参数3表示需要3个线程到达屏障点
+        CyclicBarrier barrier = new CyclicBarrier(3, () -> {
+            System.out.println("所有线程已到达屏障点，执行屏障操作");
+        });
+
+        for (int i = 0; i < 3; i++) {
+            new Thread(() -> {
+                try {
+                    System.out.println(Thread.currentThread().getName() + " 开始执行");
+                    Thread.sleep((long) (Math.random() * 3000)); // 模拟任务执行
+                    System.out.println(Thread.currentThread().getName() + " 到达屏障点");
+                    
+                    // 等待其他线程到达屏障点
+                    barrier.await();
+                    
+                    System.out.println(Thread.currentThread().getName() + " 继续执行后续任务");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, "线程" + i).start();
+        }
+    }
+}
+```
+
+### 常用方法
+
+1. **await()**
+   - 当前线程到达屏障点
+   - 阻塞直到所有线程都调用了此方法
+2. **await(long timeout, TimeUnit unit)**
+   - 带超时的等待
+   - 超时后抛出TimeoutException
+3. **getParties()**
+   - 返回需要到达屏障点的线程数
+4. **getNumberWaiting()**
+   - 返回当前在屏障处等待的线程数
+5. **reset()**
+   - 重置屏障到初始状态
+
+### 实际应用场景
+
+### 1. 多任务分阶段处理
+
+```java
+public class MultiStageTask {
+    public static void main(String[] args) {
+        int threadCount = 3;
+        CyclicBarrier barrier = new CyclicBarrier(threadCount, 
+            () -> System.out.println("--- 阶段完成，开始下一阶段 ---"));
+        
+        for (int i = 0; i < threadCount; i++) {
+            final int threadNum = i;
+            new Thread(() -> {
+                try {
+                    // 第一阶段
+                    System.out.println("线程" + threadNum + " 执行第一阶段");
+                    Thread.sleep(1000);
+                    barrier.await();
+                    
+                    // 第二阶段
+                    System.out.println("线程" + threadNum + " 执行第二阶段");
+                    Thread.sleep(1000);
+                    barrier.await();
+                    
+                    // 第三阶段
+                    System.out.println("线程" + threadNum + " 执行第三阶段");
+                    Thread.sleep(1000);
+                    barrier.await();
+                    
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+    }
+}
+```
+
+### 2. 并行计算
+
+```java
+public class ParallelComputation {
+    private static final int THREAD_COUNT = 4;
+    private static final int[] data = new int[100];
+    
+    static {
+        // 初始化数据
+        for (int i = 0; i < data.length; i++) {
+            data[i] = i + 1;
+        }
+    }
+    
+    public static void main(String[] args) {
+        int segmentSize = data.length / THREAD_COUNT;
+        int[] results = new int[THREAD_COUNT];
+        
+        // 创建CyclicBarrier，所有线程完成后执行汇总操作
+        CyclicBarrier barrier = new CyclicBarrier(THREAD_COUNT, () -> {
+            int sum = 0;
+            for (int result : results) {
+                sum += result;
+            }
+            System.out.println("总和: " + sum);
+        });
+        
+        // 创建并启动线程
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            final int threadIndex = i;
+            new Thread(() -> {
+                int start = threadIndex * segmentSize;
+                int end = (threadIndex == THREAD_COUNT - 1) ? data.length : start + segmentSize;
+                int sum = 0;
+                
+                // 计算分段和
+                for (int j = start; j < end; j++) {
+                    sum += data[j];
+                }
+                
+                // 保存结果
+                results[threadIndex] = sum;
+                System.out.printf("线程%d 计算完成，部分和: %d%n", threadIndex, sum);
+                
+                try {
+                    // 等待其他线程完成
+                    barrier.await();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+    }
+}
+```
+
+### 与 CountDownLatch 的区别
+
+| 特性     | CyclicBarrier    | CountDownLatch                 |
+| :------- | :--------------- | :----------------------------- |
+| 重用性   | 可重复使用       | 一次性使用                     |
+| 计数器   | 递增（可重置）   | 递减（不可重置）               |
+| 等待机制 | 所有线程互相等待 | 一个或多个线程等待其他线程     |
+| 使用场景 | 多线程分阶段处理 | 一个或多个线程等待其他线程完成 |
+
+### 注意事项
+
+1. 如果等待的线程被中断，会抛出BrokenBarrierException
+2. 可以使用reset()方法重置屏障，但会破坏正在等待的线程
+3. 屏障操作（Runnable）由最后一个到达屏障的线程执行
+4. 适合固定数量的线程协同工作CyclicBarrier特别适合需要多个线程相互等待，然后一起继续执行的场景，如多阶段任务处理、并行计算等。
 
 ## Semaphore
 
@@ -622,6 +942,10 @@ public void increment() throws InterruptedException {
         lock.unlock();
     }
 }
+//这里面的condition作用：配合lock来实现线程等待的场景（如这个例子实现教程交替操作：初始值为0的变量，两个线程交替操作，一个+1，一个-1，执行五轮）
+//根据源码newCondition();上面的注释，Condition. await() 在等待前会自动的释放锁，并且会重启获取锁当等待结束的时候
+//Returns a new Condition instance that is bound to this Lock instance.
+//Before waiting on the condition the lock must be held by the current thread. A call to Condition. await() will atomically //release the lock before waiting and re-acquire the lock before the wait returns.
 ```
 
 ## 阻塞队列模式
