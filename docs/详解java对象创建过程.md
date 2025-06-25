@@ -508,8 +508,8 @@ Java对象在内存中的存储布局可以分为三个部分：对象头(Header
 
 ## 示例
 
-```
-javapublic class Student {
+```java
+public class Student {
     private int id;          // 4字节
     private String name;     // 引用类型，4字节(压缩指针)或8字节
     private boolean gender;  // 1字节
@@ -519,16 +519,16 @@ javapublic class Student {
 // 对象大小计算(64位JVM，开启压缩指针):
 // 对象头: 12字节 (8字节Mark Word + 4字节类型指针)
 // 实例数据: 4(int) + 4(String引用) + 1(boolean) = 9字节
-// 对齐填充: 7字节 (使总大小为8的倍数)
-// 总计: 12 + 9 + 7 = 32字节
+// 对齐填充: 3字节 (使总大小为8的倍数)
+// 总计: 12 + 9 + 3 = 24字节
 ```
 
 ## 查看对象内存布局
 
 可以使用JOL (Java Object Layout)工具查看对象内存布局：
 
-```
-java// 添加Maven依赖
+```java
+// 添加Maven依赖
 // <dependency>
 //     <groupId>org.openjdk.jol</groupId>
 //     <artifactId>jol-core</artifactId>

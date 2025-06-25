@@ -548,6 +548,81 @@ public class AccountService {
 
  但是，JDK后面优化了设计方案，在JDK8中 **ThreadLocal**的设计是：每个**Thread**维护一个**ThreadLocalMap**，这个**Map**的**key**是**ThreadLocal**实例本身，**value**才是真正要存储的值**Object**。
 
+### ThreadLocalMap 中 Entry 的 key 设计选择
+
+ThreadLocalMap 的 Entry 使用 ThreadLocal 实例作为 key 而不是 Thread，这种设计有以下几个关键原因：
+
+#### 1. 一对多关系
+
+- 一个 Thread 可以关联多个 ThreadLocal 变量
+- 每个 ThreadLocal 变量对应一个特定类型的值
+- 使用 ThreadLocal 作为 key 可以支持同一个线程中存储多个不同类型的变量
+
+#### 2. 内存管理优化
+
+```java
+static class Entry extends WeakReference<ThreadLocal<?>> {
+    Object value;
+    Entry(ThreadLocal<?> k, Object v) {
+        super(k);  // 弱引用指向ThreadLocal
+        value = v;
+    }
+}
+```
+
+- **弱引用键**：当 ThreadLocal 实例没有强引用时，可以被 GC 回收
+- **防止内存泄漏**：避免 ThreadLocal 实例被意外保留导致的内存泄漏
+
+#### 3. 线程生命周期解耦
+
+- ThreadLocal 实例的生命周期通常比线程短
+- 使用 Thread 作为 key 会导致 Thread 对象无法被回收（因为作为 key 被引用）
+- 使用 ThreadLocal 作为 key 允许线程结束后，ThreadLocal 实例可以被正常回收
+
+#### 4. 设计一致性
+
+- 每个线程维护自己的 ThreadLocalMap
+- Map 的 key 是 ThreadLocal 实例，value 是对应线程的变量副本
+- 这种设计更符合"线程本地存储"的概念模型
+
+#### 5. 清理机制
+
+当 ThreadLocal 实例被回收后，对应的 Entry 变为：
+
+```java
+// 伪代码
+if (entry != null && entry.get() == null) {  // key被回收了
+    // 清理逻辑
+    expungeStaleEntry(i);
+}
+```
+
+- 允许在后续操作中清理无效的 Entry
+- 防止内存泄漏
+
+#### 实际应用示例
+
+```java
+public class UserContext {
+    private static final ThreadLocal<User> currentUser = new ThreadLocal<>();
+    private static final ThreadLocal<Locale> userLocale = new ThreadLocal<>();
+    
+    // 同一个线程中可以存储多个ThreadLocal变量
+    public static void init(User user, Locale locale) {
+        currentUser.set(user);
+        userLocale.set(locale);
+    }
+    
+    // 清理所有ThreadLocal变量
+    public static void clear() {
+        currentUser.remove();
+        userLocale.remove();
+    }
+}
+```
+
+这种设计在保证线程安全的同时，提供了更好的灵活性和内存管理特性。
+
 具体的过程是这样的：
 
 - 每个Thread线程内部都有一个Map (ThreadLocalMap)
