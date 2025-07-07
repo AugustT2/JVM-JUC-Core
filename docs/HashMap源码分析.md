@@ -767,3 +767,6 @@ if (hiTail != null) {
 
 > 当然，jdk1.8中的HashMap本身是线程不安全的，在多线程环境下，应该还会有更多其他问题，有待大家一起去探究。
 
+
+
+![image-20250706220852506](C:\Users\Alex\AppData\Roaming\Typora\typora-user-images\image-20250706220852506.png)
