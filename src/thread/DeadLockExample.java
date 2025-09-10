@@ -1,0 +1,57 @@
+package thread;
+
+import java.util.concurrent.*;
+
+public class DeadLockExample {
+    private static final Object lock1 = new Object();
+    private static final Object lock2 = new Object();
+
+    public static void main(String[] args) {
+        Thread thread1 = new Thread(() -> {
+            synchronized (lock1) {
+                System.out.println("Thread 1: Holding lock1...");
+                try {
+                    Thread.sleep(100); // 模拟耗时操作
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("Thread 1: Waiting for lock2...");
+                synchronized (lock2) {
+                    System.out.println("Thread 1: Acquired lock2!");
+                }
+            }
+        });
+
+        Thread thread2 = new Thread(() -> {
+            synchronized (lock2) {
+                System.out.println("Thread 2: Holding lock2...");
+                try {
+                    Thread.sleep(100); // 模拟耗时操作
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("Thread 2: Waiting for lock1...");
+                synchronized (lock1) {
+                    System.out.println("Thread 2: Acquired lock1!");
+                }
+            }
+        });
+
+        thread1.start();
+        thread2.start();
+
+        Callable<Integer> callable = () -> 12;
+        FutureTask<Integer> integerFutureTask = new FutureTask<Integer>(callable);
+        new Thread(integerFutureTask).start();
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(3, 3, 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>(100),
+                Executors.defaultThreadFactory(), new ThreadPoolExecutor.CallerRunsPolicy());
+        threadPoolExecutor.submit(callable);
+        try {
+            Integer i = integerFutureTask.get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}

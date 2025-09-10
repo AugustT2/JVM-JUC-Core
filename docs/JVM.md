@@ -510,9 +510,42 @@ true
 false
 false
 true
+•
+new StringBuilder("58").append("tongcheng").toString()在堆内存中创建了一个新的 String对象 "58tongcheng"。
+​关键点​："58tongcheng"​不会自动进入字符串常量池，因为它是由 StringBuilder动态拼接生成的。
+​str1.intern()的行为（Java 8）​​：
+•调用 intern()时，JVM 检查字符串常量池：
+•如果 "58tongcheng"​不存在于常量池，则将堆中的 str1的引用记录到常量池，并返回该引用。
+•如果已存在，则直接返回常量池中的引用。
+•由于 "58tongcheng"是首次出现，intern()会将 str1的引用存入常量池，并返回 str1本身。
+•​str1 == str1.intern()​：
+•​true，因为 intern()返回的就是 str1的引用。
 
+    
+•​str2的创建​：
+•new StringBuilder("ja").append("va").toString()在堆内存中创建了一个新的 String对象 "java"。
+•​关键点​："java"是一个特殊字符串，JVM 在启动时默认会将其预先加载到字符串常量池​（例如用于版本信息、类加载等）。
+•​str2.intern()的行为​：
+•调用 intern()时，JVM 发现 "java"​已在常量池中存在​（由 JVM 预先加载）。
+•因此，intern()​直接返回常量池中的引用，而不是 str2的引用。
+•​str2 == str2.intern()​：
+•​false，因为：
+•str2指向堆中的新对象。
+•str2.intern()返回的是常量池中的旧引用
 
 https://www.cnblogs.com/holos/p/6603379.html
+```
+
+```java
+字符串常量池（String Pool）的本质​
+•​它不是存储字符串对象的地方，而是一个“引用表”​。
+•可以理解为一张全局的哈希表，​键是字符串内容，值是对应字符串对象的引用。
+•这个表在逻辑上是堆的一部分（物理上可能是一个特殊的数据结构，如 StringTable）。
+•​字符串对象本身始终在堆中，无论是通过字面量（如 "java"）还是 new String("java")创建的。
+​常量池中的“引用”是什么？​​•
+这里的“引用”就是 ​指向堆中某个字符串对象的内存地址​（类似 C的指针）。
+常量池通过维护这些引用，实现字符串的唯一性​（即相同内容的字符串只存一份）。
+    ==>常量池对应的对象的引用在堆里面;new出来的对象的引用在栈里面
 ```
 
 

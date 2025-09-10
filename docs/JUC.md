@@ -68,6 +68,8 @@ JMM可能带来**可见性**、**原子性**和**有序性**问题。所谓可�
 
 ## 可见性
 
+当一个线程修改 `volatile`变量时，新值会 **立即刷新到主存**，其他线程读取时会 **强制从主存重新加载**，而不是使用本地缓存。
+
 [可见性测试](https://github.com/MaJesTySA/JVM-JUC-Core/blob/master/src/thread/VolatileDemo.java)
 
 ```java
@@ -129,7 +131,9 @@ main	 mission is over. main get number value: 60
 
 ## 原子性
 
-volatile并**不能保证操作的原子性**。这是因为，比如一条number++的操作，会形成3条指令。
+原子性是指 **一个操作是不可分割的，要么全部执行成功，要么完全不执行**。在并发编程中，如果一个操作是原子的，那么它不会受到其他线程的干扰。
+
+volatile并**不能保证操作的原子性**。这是因为，比如一条number++的操作，会形成3条指令（读改写）。
 
 ```assembly
 getfield        //读
@@ -138,7 +142,7 @@ iadd		//加操作
 putfield	//写操作
 ```
 
-假设有3个线程，分别执行number++，都先从主内存中拿到最开始的值，number=0，然后三个线程分别进行操作。假设线程0执行完毕，number=1，也立刻通知到了其它线程，但是此时线程1、2已经拿到了number=0，所以结果就是写覆盖，线程1、2将number变成1。
+假设有3个线程，分别执行number++，都先从主内存中拿到最开始的值，number=0，然后三个线程分别进行操作。假设线程0执行完毕，number=1，也立刻通知到了其它线程，但是此时线程1、2已经拿到了number=0，所以结果就是写覆盖，线程1、2将number变成1。**`volatile`只保证每次读取的是最新值，但不能保证 `count++`的整个操作是原子的！**
 
 解决的方式就是：
 
@@ -236,7 +240,7 @@ instance(memory);	 //2.初始化对象
 instance = memory;	 //3.设置引用地址
 ```
 
-其中2、3没有数据依赖关系，**可能发生重排**。如果发生，此时内存已经分配，那么`instance=memory`不为null。如果此时线程挂起，`instance(memory)`还未执行，对象还未初始化。由于`instance!=null`，所以两次判断都跳过，最后返回的`instance`没有任何内容，还没初始化。
+其中2、3没有数据依赖关系，**可能发生重排**。如果发生，此时内存已经分配，那么`instance=memory`不为null。如果此时线程**挂起**（g了），`instance(memory)`还未执行，对象还未初始化。由于`instance!=null`，所以两次判断都跳过，最后返回的`instance`没有任何内容，还没初始化。
 
 解决的方法就是对`singletondemo`对象添加上`volatile`关键字，禁止指令重排。
 
@@ -1103,3 +1107,63 @@ ExecutorService threadPool=new ThreadPoolExecutor(2,5,
 Found 1 deadlock.
 ```
 
+//windows 上使用jconsole或者jvisualvm
+
+直接将 `bin`目录添加到系统的 **PATH** 环境变量中，这样你就可以在任何地方直接启动它们。
+
+**在 Windows 上：**
+
+1. 1.按下 `Win + R`键。
+2. 2.输入 `cmd`并按回车，打开命令提示符。
+3. 3.直接输入 `jconsole`或 `jvisualvm`并按回车。
+
+### 工具界面和定位死锁
+
+#### **jconsole**
+
+1. 1.启动 `jconsole`后，会看到一个列表，显示所有本地的 Java 进程。找到你的死锁程序（通常通过主类名识别，如 `DeadLockExample`）。
+2. 2.双击连接进去。
+3. 3.切换到 **“线程” (Threads)** 选项卡。
+4. 4.点击底部的 **“检测死锁” (Detect Deadlock)** 按钮。jconsole 会立即显示出哪些线程陷入了死锁，并可以直接查看这些线程的堆栈信息，清晰地告诉你每个线程在等待哪把锁，以及当前持有哪把锁。
+
+#### **VisualVM (功能更强大)**
+
+1. 1.启动 `jvisualvm`。
+
+2. 2.在左侧的应用程序列表中找到你的 Java 进程。
+
+3. 3.双击连接进去。
+
+4. 4.切换到 **“线程” (Threads)** 选项卡。
+
+5. 5.你不需要手动点击任何按钮，如果存在死锁，VisualVM 会在线程视图的顶部用一个明显的红色警告图标和 **“检测到死锁” (Deadlock detected)** 的文字提示你。点击提示，下面的线程转储就会自动聚焦到参与死锁的线程上，非常直观。点旁边的**线程Dump**图标会出新的页面，一直下拉就会定位代码死锁位置。和什么jstack贴出来的内容一样，可以看到具体在哪一行。
+
+   ```java
+   Found one Java-level deadlock:
+   =============================
+   "Thread-1":
+     waiting to lock monitor 0x0000000025effef8 (object 0x00000005c0c43118, a java.lang.Object),
+     which is held by "Thread-0"
+   "Thread-0":
+     waiting to lock monitor 0x0000000025f02998 (object 0x00000005c0c43108, a java.lang.Object),
+     which is held by "Thread-1"
+   
+   Java stack information for the threads listed above:
+   ===================================================
+   "Thread-1":
+           at thread.DeadLockExample.lambda$main$1(DeadLockExample.java:33)
+           - waiting to lock <0x00000005c0c43118> (a java.lang.Object)
+           - locked <0x00000005c0c43108> (a java.lang.Object)
+           at thread.DeadLockExample$$Lambda$2/2093631819.run(Unknown Source)
+           at java.lang.Thread.run(Thread.java:748)
+   "Thread-0":
+           at thread.DeadLockExample.lambda$main$0(DeadLockExample.java:18)
+           - waiting to lock <0x00000005c0c43108> (a java.lang.Object)
+           - locked <0x00000005c0c43118> (a java.lang.Object)
+           at thread.DeadLockExample$$Lambda$1/1023892928.run(Unknown Source)
+           at java.lang.Thread.run(Thread.java:748)
+   
+   Found 1 deadlock.
+   ```
+
+   
