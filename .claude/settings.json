@@ -1,0 +1,7 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://www.dmxapi.cn",
+    "ANTHROPIC_AUTH_TOKEN": "sk-IOQ7yZDSpUKoNbt2CgOIXMCkL5f1pl1Btx6UfxbA2kSZcQfx"
+  },
+  "model": "opus"
+}
