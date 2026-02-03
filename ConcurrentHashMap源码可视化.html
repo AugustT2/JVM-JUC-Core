@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConcurrentHashMap 源码可视化演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151a35;
+            --bg-card: #1e2442;
+            --accent-blue: #4a90e2;
+            --accent-purple: #9b59b6;
+            --accent-green: #2ecc71;
+            --accent-orange: #e67e22;
+            --accent-red: #e74c3c;
+            --text-primary: #ecf0f1;
+            --text-secondary: #95a5a6;
+            --border-color: #34495e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(30, 36, 66, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 25px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            text-align: center;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(74, 144, 226, 0.3);
+        }
+
+        .header p {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 10px;
+            font-size: 1.1em;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+
+        .tab-btn {
+            background: linear-gradient(135deg, rgba(74, 144, 226, 0.2), rgba(155, 89, 182, 0.2));
+            border: 2px solid var(--accent-blue);
+            color: var(--text-primary);
+            padding: 15px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .tab-btn:hover::before {
+            left: 100%;
+        }
+
+        .tab-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.4);
+            border-color: var(--accent-purple);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.5);
+            transform: scale(1.05);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animation-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .canvas-container {
+            background: rgba(10, 14, 39, 0.5);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 25px 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border: none;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(74, 144, 226, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-red));
+        }
+
+        .explanation {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            line-height: 1.8;
+        }
+
+        .explanation h3 {
+            color: var(--accent-purple);
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        .explanation h4 {
+            color: var(--accent-blue);
+            margin: 20px 0 10px;
+            font-size: 1.2em;
+        }
+
+        .explanation ul, .explanation ol {
+            padding-left: 25px;
+            margin: 10px 0;
+        }
+
+        .explanation li {
+            margin: 10px 0;
+            color: var(--text-primary);
+        }
+
+        .highlight {
+            color: var(--accent-orange);
+            font-weight: bold;
+            background: rgba(230, 126, 34, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .code-block::before {
+            content: 'Java';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-blue);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .code-block pre {
+            margin: 0;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .comment { color: #6a9955; font-style: italic; }
+        .function { color: #dcdcaa; }
+        .number { color: #b5cea8; }
+        .class-name { color: #4ec9b0; }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .comparison-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s;
+        }
+
+        .comparison-item:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(74, 144, 226, 0.2);
+        }
+
+        .comparison-item h4 {
+            color: var(--accent-blue);
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            margin: 5px;
+        }
+
+        .badge-jdk7 {
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-red));
+        }
+
+        .badge-jdk8 {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+        }
+
+        .step-indicator {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--accent-green);
+            border: 2px dashed var(--accent-green);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, rgba(74, 144, 226, 0.1), rgba(155, 89, 182, 0.1));
+            border-left: 4px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .info-box-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            margin-top: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎬 ConcurrentHashMap 源码可视化演示</h1>
+        <p>深入理解高并发HashMap底层原理与实现机制</p>
+    </div>
+
+    <div class="container">
+        <!-- 导航标签 -->
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('jdk-comparison')">🔀 JDK7 vs JDK8</button>
+            <button class="tab-btn" onclick="switchTab('put-process')">📥 Put流程</button>
+            <button class="tab-btn" onclick="switchTab('resize')">📈 扩容机制</button>
+            <button class="tab-btn" onclick="switchTab('counter')">🔢 计数原理</button>
+        </div>
+
+        <!-- Tab 1: JDK7 vs JDK8 对比 -->
+        <div id="jdk-comparison" class="tab-content active">
+            <div class="animation-card">
+                <h2 class="card-title">🔀 JDK7 vs JDK8 锁机制对比</h2>
+
+                <div class="canvas-container">
+                    <canvas id="comparisonCanvas" width="1200" height="500"></canvas>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="animateJDK7()">▶ 演示 JDK7 分段锁</button>
+                    <button class="btn btn-secondary" onclick="animateJDK8()">▶ 演示 JDK8 CAS+Sync</button>
+                    <button class="btn btn-warning" onclick="resetComparison()">🔄 重置</button>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #e74c3c;"></div>
+                        <span>Segment 锁</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #3498db;"></div>
+                        <span>CAS 操作</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2ecc71;"></div>
+                        <span>synchronized 锁</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f39c12;"></div>
+                        <span>数据节点</span>
+                    </div>
+                </div>
+
+                <div class="comparison-grid">
+                    <div class="comparison-item">
+                        <h4><span class="badge badge-jdk7">JDK 7</span> 分段锁机制</h4>
+                        <ul>
+                            <li><span class="highlight">Segment[] 数组</span>：继承 ReentrantLock</li>
+                            <li><span class="highlight">锁粒度</span>：锁整个 Segment</li>
+                            <li><span class="highlight">并发度</span>：受限于 Segment 数量（默认16）</li>
+                            <li><span class="highlight">扩容</span>：单个 Segment 独立扩容</li>
+                            <li><span class="highlight">缺点</span>：锁竞争集中，扩容不全局</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-item">
+                        <h4><span class="badge badge-jdk8">JDK 8</span> CAS + synchronized</h4>
+                        <ul>
+                            <li><span class="highlight">Node[] 数组</span>：直接存储节点</li>
+                            <li><span class="highlight">锁粒度</span>：锁单个数组位置（桶）</li>
+                            <li><span class="highlight">并发度</span>：理论无限（取决于桶数量）</li>
+                            <li><span class="highlight">扩容</span>：多线程协助全局扩容</li>
+                            <li><span class="highlight">优势</span>：锁粒度更细，性能更高</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <h3>📚 核心区别详解</h3>
+
+                    <h4>1. 数据结构演变</h4>
+                    <div class="code-block">
+<pre><span class="comment">// JDK7: Segment分段锁</span>
+<span class="keyword">static class</span> <span class="class-name">Segment</span>&lt;K,V&gt; <span class="keyword">extends</span> <span class="class-name">ReentrantLock</span> {
+    <span class="keyword">transient volatile</span> <span class="class-name">HashEntry</span>&lt;K,V&gt;[] table;
+    <span class="keyword">transient int</span> count;
+    <span class="comment">// 锁住整个Segment，粒度较粗</span>
+}
+
+<span class="comment">// JDK8: 直接数组+CAS</span>
+<span class="keyword">transient volatile</span> <span class="class-name">Node</span>&lt;K,V&gt;[] table;
+<span class="comment">// 使用CAS+synchronized，锁粒度精确到单个桶</span>
+<span class="keyword">synchronized</span> (f) {  <span class="comment">// f是数组某个位置的头节点</span>
+    <span class="comment">// 只锁定当前桶，其他桶可并发访问</span>
+}</pre>
+                    </div>
+
+                    <h4>2. 并发度提升</h4>
+                    <ul>
+                        <li><span class="highlight">JDK7</span>：并发度 = Segment数量（默认16），最多16个线程同时写入</li>
+                        <li><span class="highlight">JDK8</span>：并发度 = 数组长度，理论可支持无限并发（不同桶）</li>
+                    </ul>
+
+                    <h4>3. 锁策略优化</h4>
+                    <ul>
+                        <li><span class="highlight">空桶插入</span>：JDK8使用CAS无锁插入，JDK7需要获取Segment锁</li>
+                        <li><span class="highlight">链表操作</span>：JDK8只锁头节点，JDK7锁整个Segment</li>
+                        <li><span class="highlight">红黑树</span>：JDK8链表长度>8自动转换，查询O(log n)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Put流程 -->
+        <div id="put-process" class="tab-content">
+            <div class="animation-card">
+                <h2 class="card-title">📥 Put 操作完整流程</h2>
+
+                <div class="canvas-container">
+                    <canvas id="putCanvas" width="1200" height="600"></canvas>
+                </div>
+
+                <div class="step-indicator" id="putStep">准备开始 Put 操作演示...</div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startPutAnimation()">▶ 开始演示</button>
+                    <button class="btn btn-secondary" onclick="pausePutAnimation()">⏸ 暂停</button>
+                    <button class="btn" onclick="stepPutAnimation()">⏭ 单步执行</button>
+                    <button class="btn btn-warning" onclick="resetPutAnimation()">🔄 重置</button>
+                </div>
+
+                <div class="explanation">
+                    <h3>📚 Put 流程详解</h3>
+
+                    <h4>完整流程步骤</h4>
+                    <ol>
+                        <li><span class="highlight">计算Hash</span>：spread(key.hashCode())，高低位异或，减少碰撞</li>
+                        <li><span class="highlight">定位桶</span>：(n - 1) & hash，快速取模找到数组位置</li>
+                        <li><span class="highlight">检查初始化</span>：如果数组为null，调用initTable()初始化</li>
+                        <li><span class="highlight">CAS插入</span>：如果桶为空，使用CAS无锁插入新节点</li>
+                        <li><span class="highlight">帮助扩容</span>：如果发现正在扩容(MOVED)，当前线程协助迁移</li>
+                        <li><span class="highlight">加锁插入</span>：synchronized锁住头节点，遍历链表/红黑树插入</li>
+                        <li><span class="highlight">树化检查</span>：链表长度 >= 8 且 数组长度 >= 64，转红黑树</li>
+                        <li><span class="highlight">计数增加</span>：addCount()，LongAdder思想更新size</li>
+                    </ol>
+
+                    <h4>核心源码</h4>
+                    <div class="code-block">
+<pre><span class="keyword">final</span> V <span class="function">putVal</span>(K key, V value, <span class="keyword">boolean</span> onlyIfAbsent) {
+    <span class="keyword">int</span> hash = <span class="function">spread</span>(key.hashCode());  <span class="comment">// 1. 计算hash</span>
+
+    <span class="keyword">for</span> (Node&lt;K,V&gt;[] tab = table;;) {
+        <span class="keyword">int</span> n, i; Node&lt;K,V&gt; f;
+
+        <span class="keyword">if</span> (tab == <span class="keyword">null</span>)
+            tab = <span class="function">initTable</span>();  <span class="comment">// 2. 初始化</span>
+        <span class="keyword">else if</span> ((f = tabAt(tab, i = (n - <span class="number">1</span>) & hash)) == <span class="keyword">null</span>) {
+            <span class="comment">// 3. CAS插入空桶</span>
+            <span class="keyword">if</span> (<span class="function">casTabAt</span>(tab, i, <span class="keyword">null</span>, <span class="keyword">new</span> Node&lt;&gt;(hash, key, value)))
+                <span class="keyword">break</span>;  <span class="comment">// 成功，无锁插入！</span>
+        }
+        <span class="keyword">else if</span> (f.hash == MOVED)
+            tab = <span class="function">helpTransfer</span>(tab, f);  <span class="comment">// 4. 帮助扩容</span>
+        <span class="keyword">else</span> {
+            <span class="keyword">synchronized</span> (f) {  <span class="comment">// 5. 锁住头节点</span>
+                <span class="keyword">if</span> (f <span class="keyword">instanceof</span> Node) {
+                    <span class="comment">// 链表插入</span>
+                    <span class="keyword">for</span> (Node&lt;K,V&gt; e = f; e != <span class="keyword">null</span>; e = e.next) {
+                        <span class="keyword">if</span> (e.hash == hash && key.equals(e.key)) {
+                            <span class="keyword">return</span> e.val;  <span class="comment">// key已存在</span>
+                        }
+                        <span class="keyword">if</span> (e.next == <span class="keyword">null</span>) {
+                            e.next = <span class="keyword">new</span> Node&lt;&gt;(hash, key, value);
+                            <span class="keyword">break</span>;
+                        }
+                    }
+                } <span class="keyword">else if</span> (f <span class="keyword">instanceof</span> TreeBin) {
+                    <span class="comment">// 红黑树插入</span>
+                }
+            }
+            <span class="comment">// 6. 检查是否需要树化</span>
+            <span class="keyword">if</span> (binCount >= TREEIFY_THRESHOLD)
+                <span class="function">treeifyBin</span>(tab, i);
+        }
+    }
+    <span class="function">addCount</span>(<span class="number">1L</span>, binCount);  <span class="comment">// 7. 计数+1</span>
+    <span class="keyword">return</span> <span class="keyword">null</span>;
+}</pre>
+                    </div>
+
+                    <h4>关键优化点</h4>
+                    <ul>
+                        <li><span class="highlight">无锁快速路径</span>：空桶CAS插入，避免加锁开销</li>
+                        <li><span class="highlight">细粒度锁</span>：只锁单个桶的头节点，不影响其他桶</li>
+                        <li><span class="highlight">协助扩容</span>：多线程共同完成扩容，提升吞吐量</li>
+                        <li><span class="highlight">红黑树优化</span>：解决hash碰撞严重时的性能退化</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 扩容机制 -->
+        <div id="resize" class="tab-content">
+            <div class="animation-card">
+                <h2 class="card-title">📈 多线程协助扩容机制</h2>
+
+                <div class="canvas-container">
+                    <canvas id="resizeCanvas" width="1200" height="600"></canvas>
+                </div>
+
+                <div class="step-indicator" id="resizeStep">准备开始扩容演示...</div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startResizeAnimation()">▶ 开始演示</button>
+                    <button class="btn btn-secondary" onclick="pauseResizeAnimation()">⏸ 暂停</button>
+                    <button class="btn btn-warning" onclick="resetResizeAnimation()">🔄 重置</button>
+                </div>
+
+                <div class="info-box">
+                    <div class="info-box-title">💡 扩容触发条件</div>
+                    <ul>
+                        <li>元素数量达到 <span class="highlight">0.75 * capacity</span>（负载因子0.75）</li>
+                        <li>链表长度 >= 8 但数组长度 < 64 时，优先扩容而非树化</li>
+                        <li>扩容时容量翻倍：<span class="highlight">newCap = oldCap << 1</span></li>
+                    </ul>
+                </div>
+
+                <div class="explanation">
+                    <h3>📚 扩容机制详解</h3>
+
+                    <h4>1. 扩容流程</h4>
+                    <ol>
+                        <li><span class="highlight">创建新数组</span>：长度为原来的2倍</li>
+                        <li><span class="highlight">设置标志</span>：sizeCtl设置为负数，表示正在扩容</li>
+                        <li><span class="highlight">分配任务</span>：将旧数组分成多个区间，每个线程负责一段</li>
+                        <li><span class="highlight">数据迁移</span>：
+                            <ul>
+                                <li>锁住旧桶的头节点</li>
+                                <li>遍历链表/树，重新计算hash分配到新数组</li>
+                                <li>旧桶位置放置ForwardingNode(hash=-1)标记已迁移</li>
+                            </ul>
+                        </li>
+                        <li><span class="highlight">协助扩容</span>：其他线程发现MOVED节点，加入扩容队伍</li>
+                        <li><span class="highlight">完成扩容</span>：所有桶迁移完毕，替换table引用</li>
+                    </ol>
+
+                    <h4>2. 核心源码</h4>
+                    <div class="code-block">
+<pre><span class="keyword">private final void</span> <span class="function">transfer</span>(Node&lt;K,V&gt;[] tab, Node&lt;K,V&gt;[] nextTab) {
+    <span class="keyword">int</span> n = tab.length, stride;
+
+    <span class="comment">// 计算每个线程负责的桶数量（最小16）</span>
+    <span class="keyword">if</span> ((stride = (NCPU > <span class="number">1</span>) ? (n >>> <span class="number">3</span>) / NCPU : n) < MIN_TRANSFER_STRIDE)
+        stride = MIN_TRANSFER_STRIDE;
+
+    <span class="keyword">if</span> (nextTab == <span class="keyword">null</span>) {
+        nextTab = <span class="keyword">new</span> Node[n << <span class="number">1</span>];  <span class="comment">// 创建2倍大小新数组</span>
+    }
+
+    ForwardingNode&lt;K,V&gt; fwd = <span class="keyword">new</span> ForwardingNode&lt;&gt;(nextTab);
+
+    <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i < n; i++) {
+        Node&lt;K,V&gt; f = tabAt(tab, i);
+
+        <span class="keyword">if</span> (f == <span class="keyword">null</span>)
+            <span class="function">casTabAt</span>(tab, i, <span class="keyword">null</span>, fwd);  <span class="comment">// 空桶直接标记</span>
+        <span class="keyword">else</span> {
+            <span class="keyword">synchronized</span> (f) {  <span class="comment">// 锁住旧桶</span>
+                <span class="comment">// 将节点重新分配到新数组</span>
+                <span class="comment">// 根据 hash & oldCap 决定留在原位还是移到 i+oldCap</span>
+                Node&lt;K,V&gt; ln, hn;  <span class="comment">// low/high链</span>
+                <span class="keyword">if</span> (f.hash >= <span class="number">0</span>) {
+                    <span class="keyword">int</span> runBit = f.hash & n;
+                    <span class="keyword">for</span> (Node&lt;K,V&gt; p = f; p != <span class="keyword">null</span>; p = p.next) {
+                        <span class="comment">// 分离节点到两条链表</span>
+                    }
+                    setTabAt(nextTab, i, ln);        <span class="comment">// 原位置</span>
+                    setTabAt(nextTab, i + n, hn);    <span class="comment">// 原位置+oldCap</span>
+                }
+                setTabAt(tab, i, fwd);  <span class="comment">// 标记迁移完成</span>
+            }
+        }
+    }
+}</pre>
+                    </div>
+
+                    <h4>3. 协助扩容机制</h4>
+                    <div class="code-block">
+<pre><span class="keyword">final</span> Node&lt;K,V&gt;[] <span class="function">helpTransfer</span>(Node&lt;K,V&gt;[] tab, Node&lt;K,V&gt; f) {
+    Node&lt;K,V&gt;[] nextTab;
+
+    <span class="keyword">if</span> (f <span class="keyword">instanceof</span> ForwardingNode) {
+        nextTab = ((ForwardingNode&lt;K,V&gt;)f).nextTable;
+
+        <span class="comment">// 尝试加入扩容队伍</span>
+        <span class="keyword">if</span> (nextTab != <span class="keyword">null</span>) {
+            <span class="keyword">int</span> sc;
+            <span class="keyword">while</span> (扩容未完成 && sizeCtl < <span class="number">0</span>) {
+                <span class="comment">// CAS增加扩容线程计数</span>
+                <span class="keyword">if</span> (U.compareAndSwapInt(<span class="keyword">this</span>, SIZECTL, sc, sc + <span class="number">1</span>)) {
+                    <span class="function">transfer</span>(tab, nextTab);  <span class="comment">// 参与迁移工作</span>
+                    <span class="keyword">break</span>;
+                }
+            }
+            <span class="keyword">return</span> nextTab;
+        }
+    }
+    <span class="keyword">return</span> table;
+}</pre>
+                    </div>
+
+                    <h4>4. 关键优化</h4>
+                    <ul>
+                        <li><span class="highlight">多线程并行</span>：将数组分段，多个线程同时迁移不同区间</li>
+                        <li><span class="highlight">主动协助</span>：Put/Get时遇到MOVED节点会主动帮助扩容</li>
+                        <li><span class="highlight">位运算优化</span>：通过 hash & oldCap 快速判断新位置</li>
+                        <li><span class="highlight">ForwardingNode</span>：标记已迁移桶，并提供查询转发功能</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 计数原理 -->
+        <div id="counter" class="tab-content">
+            <div class="animation-card">
+                <h2 class="card-title">🔢 并发计数原理 (LongAdder)</h2>
+
+                <div class="canvas-container">
+                    <canvas id="counterCanvas" width="1200" height="500"></canvas>
+                </div>
+
+                <div class="step-indicator" id="counterStep">准备演示计数原理...</div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startCounterAnimation()">▶ 开始演示</button>
+                    <button class="btn btn-secondary" onclick="simulateHighConcurrency()">🔥 模拟高并发</button>
+                    <button class="btn btn-warning" onclick="resetCounterAnimation()">🔄 重置</button>
+                </div>
+
+                <div class="info-box">
+                    <div class="info-box-title">💡 为什么不用 AtomicLong？</div>
+                    <p>高并发环境下，大量线程CAS更新同一个AtomicLong会导致严重的竞争和自旋，性能急剧下降。</p>
+                    <p><span class="highlight">LongAdder思想</span>：将热点分散到多个Cell，减少竞争，最后汇总得到总数。</p>
+                </div>
+
+                <div class="explanation">
+                    <h3>📚 计数机制详解</h3>
+
+                    <h4>1. 数据结构</h4>
+                    <div class="code-block">
+<pre><span class="keyword">private transient volatile long</span> baseCount;  <span class="comment">// 基础计数</span>
+
+<span class="keyword">private transient volatile</span> CounterCell[] counterCells;  <span class="comment">// 计数单元数组</span>
+
+<span class="comment">// 计数单元（使用@Contended避免伪共享）</span>
+<span class="keyword">@sun.misc.Contended static final class</span> <span class="class-name">CounterCell</span> {
+    <span class="keyword">volatile long</span> value;
+    <span class="function">CounterCell</span>(<span class="keyword">long</span> x) { value = x; }
+}</pre>
+                    </div>
+
+                    <h4>2. 计数流程</h4>
+                    <ol>
+                        <li><span class="highlight">低竞争</span>：直接CAS更新baseCount</li>
+                        <li><span class="highlight">CAS失败</span>：说明存在竞争，尝试更新CounterCell</li>
+                        <li><span class="highlight">Cell选择</span>：通过线程ID随机选择一个Cell，ThreadLocalRandom.probe()</li>
+                        <li><span class="highlight">Cell扩容</span>：如果Cell也竞争激烈，扩容Cell数组（最大CPU核数）</li>
+                        <li><span class="highlight">获取总数</span>：sum = baseCount + Σ(counterCells[i].value)</li>
+                    </ol>
+
+                    <h4>3. addCount 核心源码</h4>
+                    <div class="code-block">
+<pre><span class="keyword">private final void</span> <span class="function">addCount</span>(<span class="keyword">long</span> x, <span class="keyword">int</span> check) {
+    CounterCell[] as; <span class="keyword">long</span> b, s;
+
+    <span class="comment">// 尝试直接CAS更新baseCount</span>
+    <span class="keyword">if</span> ((as = counterCells) != <span class="keyword">null</span> ||
+        !U.compareAndSwapLong(<span class="keyword">this</span>, BASECOUNT, b = baseCount, s = b + x)) {
+
+        <span class="comment">// baseCount更新失败，使用CounterCell</span>
+        CounterCell a; <span class="keyword">long</span> v; <span class="keyword">int</span> m;
+        <span class="keyword">boolean</span> uncontended = <span class="keyword">true</span>;
+
+        <span class="keyword">if</span> (as == <span class="keyword">null</span> || (m = as.length - <span class="number">1</span>) < <span class="number">0</span> ||
+            (a = as[ThreadLocalRandom.getProbe() & m]) == <span class="keyword">null</span> ||
+            !(uncontended = U.compareAndSwapLong(a, CELLVALUE, v = a.value, v + x))) {
+
+            <span class="comment">// Cell也失败，进入fullAddCount处理</span>
+            <span class="function">fullAddCount</span>(x, uncontended);
+            <span class="keyword">return</span>;
+        }
+    }
+
+    <span class="comment">// 检查是否需要扩容</span>
+    <span class="keyword">if</span> (check >= <span class="number">0</span>) {
+        <span class="keyword">if</span> (s >= (<span class="keyword">long</span>)(sc = sizeCtl) && table != <span class="keyword">null</span>) {
+            <span class="function">transfer</span>(table, <span class="keyword">null</span>);  <span class="comment">// 触发扩容</span>
+        }
+    }
+}</pre>
+                    </div>
+
+                    <h4>4. 获取总数</h4>
+                    <div class="code-block">
+<pre><span class="keyword">public long</span> <span class="function">size</span>() {
+    <span class="keyword">long</span> n = <span class="function">sumCount</span>();
+    <span class="keyword">return</span> (n < <span class="number">0L</span>) ? <span class="number">0L</span> : n;
+}
+
+<span class="keyword">final long</span> <span class="function">sumCount</span>() {
+    CounterCell[] as = counterCells;
+    <span class="keyword">long</span> sum = baseCount;  <span class="comment">// 从baseCount开始</span>
+
+    <span class="keyword">if</span> (as != <span class="keyword">null</span>) {
+        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i < as.length; i++) {
+            CounterCell a;
+            <span class="keyword">if</span> ((a = as[i]) != <span class="keyword">null</span>)
+                sum += a.value;  <span class="comment">// 累加所有Cell</span>
+        }
+    }
+    <span class="keyword">return</span> sum;  <span class="comment">// 注意：非强一致性，是近似值</span>
+}</pre>
+                    </div>
+
+                    <h4>5. 关键点总结</h4>
+                    <ul>
+                        <li><span class="highlight">热点分散</span>：多个Cell分担压力，避免单点竞争</li>
+                        <li><span class="highlight">动态扩容</span>：Cell数组根据竞争情况动态扩容</li>
+                        <li><span class="highlight">伪共享优化</span>：@Contended注解保证Cell不在同一缓存行</li>
+                        <li><span class="highlight">弱一致性</span>：size()返回的是近似值，不保证强一致性</li>
+                        <li><span class="highlight">空间换时间</span>：牺牲少量空间（Cell数组），换取高并发性能</li>
+                    </ul>
+
+                    <h4>6. 性能对比</h4>
+                    <div class="comparison-grid">
+                        <div class="comparison-item">
+                            <h4>AtomicLong</h4>
+                            <ul>
+                                <li>单个热点变量</li>
+                                <li>高并发下CAS自旋严重</li>
+                                <li>线程数增加，性能急剧下降</li>
+                                <li>适合低并发场景</li>
+                            </ul>
+                        </div>
+                        <div class="comparison-item">
+                            <h4>LongAdder</h4>
+                            <ul>
+                                <li>多个Cell分散热点</li>
+                                <li>减少CAS竞争</li>
+                                <li>线程数增加，性能线性扩展</li>
+                                <li>适合高并发计数场景</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <div class="footer">
+            <p>🎓 ConcurrentHashMap 源码可视化讲解</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">理解并发HashMap，掌握高并发编程精髓</p>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Tab 切换逻辑
+        // ============================================
+        function switchTab(tabId) {
+            // 隐藏所有tab内容
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            // 移除所有按钮active状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中的tab
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // ============================================
+        // Tab 1: JDK7 vs JDK8 对比动画
+        // ============================================
+        const compCanvas = document.getElementById('comparisonCanvas');
+        const compCtx = compCanvas.getContext('2d');
+        let compAnimationId = null;
+
+        function resetComparison() {
+            if (compAnimationId) cancelAnimationFrame(compAnimationId);
+            compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+            drawComparisonStatic();
+        }
+
+        function drawComparisonStatic() {
+            compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+
+            // 标题
+            compCtx.font = 'bold 24px Arial';
+            compCtx.fillStyle = '#ecf0f1';
+            compCtx.fillText('JDK 7: 分段锁机制', 100, 40);
+            compCtx.fillText('JDK 8: CAS + synchronized', 700, 40);
+
+            // JDK7 结构
+            drawJDK7Structure(150, 80);
+
+            // JDK8 结构
+            drawJDK8Structure(750, 80);
+        }
+
+        function drawJDK7Structure(x, y) {
+            // Segment数组
+            compCtx.strokeStyle = '#e74c3c';
+            compCtx.lineWidth = 2;
+            compCtx.fillStyle = 'rgba(231, 76, 60, 0.2)';
+
+            for (let i = 0; i < 4; i++) {
+                const segY = y + i * 90;
+                // Segment框
+                compCtx.fillRect(x, segY, 300, 70);
+                compCtx.strokeRect(x, segY, 300, 70);
+
+                // Segment标签
+                compCtx.fillStyle = '#ecf0f1';
+                compCtx.font = 'bold 14px Arial';
+                compCtx.fillText(`Segment[${i}]`, x + 10, segY + 20);
+                compCtx.font = '12px Arial';
+                compCtx.fillStyle = '#e74c3c';
+                compCtx.fillText('🔒 ReentrantLock', x + 10, segY + 40);
+
+                // HashEntry链表
+                for (let j = 0; j < 3; j++) {
+                    compCtx.fillStyle = '#f39c12';
+                    compCtx.fillRect(x + 150 + j * 45, segY + 15, 35, 35);
+                    compCtx.strokeStyle = '#e67e22';
+                    compCtx.strokeRect(x + 150 + j * 45, segY + 15, 35, 35);
+
+                    // 箭头
+                    if (j < 2) {
+                        compCtx.strokeStyle = '#ecf0f1';
+                        compCtx.beginPath();
+                        compCtx.moveTo(x + 185 + j * 45, segY + 32);
+                        compCtx.lineTo(x + 195 + j * 45, segY + 32);
+                        compCtx.stroke();
+                        compCtx.beginPath();
+                        compCtx.moveTo(x + 195 + j * 45, segY + 32);
+                        compCtx.lineTo(x + 190 + j * 45, segY + 28);
+                        compCtx.moveTo(x + 195 + j * 45, segY + 32);
+                        compCtx.lineTo(x + 190 + j * 45, segY + 36);
+                        compCtx.stroke();
+                    }
+                }
+
+                compCtx.fillStyle = 'rgba(231, 76, 60, 0.2)';
+            }
+        }
+
+        function drawJDK8Structure(x, y) {
+            // Node数组
+            compCtx.fillStyle = '#ecf0f1';
+            compCtx.font = '12px Arial';
+
+            for (let i = 0; i < 8; i++) {
+                const bucketY = y + i * 50;
+
+                // 桶索引
+                compCtx.fillStyle = '#95a5a6';
+                compCtx.fillText(`[${i}]`, x - 30, bucketY + 25);
+
+                // 桶节点
+                if (i === 2 || i === 5) {
+                    // 有数据的桶
+                    compCtx.fillStyle = 'rgba(46, 204, 113, 0.3)';
+                    compCtx.fillRect(x, bucketY, 50, 40);
+                    compCtx.strokeStyle = '#2ecc71';
+                    compCtx.lineWidth = 2;
+                    compCtx.strokeRect(x, bucketY, 50, 40);
+
+                    // synchronized标记
+                    compCtx.fillStyle = '#2ecc71';
+                    compCtx.font = 'bold 10px Arial';
+                    compCtx.fillText('🔒sync', x + 5, bucketY + 25);
+
+                    // 链表节点
+                    for (let j = 0; j < 3; j++) {
+                        compCtx.fillStyle = '#f39c12';
+                        compCtx.fillRect(x + 70 + j * 40, bucketY + 5, 30, 30);
+                        compCtx.strokeStyle = '#e67e22';
+                        compCtx.strokeRect(x + 70 + j * 40, bucketY + 5, 30, 30);
+
+                        if (j < 2) {
+                            compCtx.strokeStyle = '#ecf0f1';
+                            compCtx.beginPath();
+                            compCtx.moveTo(x + 100 + j * 40, bucketY + 20);
+                            compCtx.lineTo(x + 110 + j * 40, bucketY + 20);
+                            compCtx.stroke();
+                        }
+                    }
+                } else if (i === 3) {
+                    // 空桶 - CAS操作
+                    compCtx.fillStyle = 'rgba(52, 152, 219, 0.2)';
+                    compCtx.fillRect(x, bucketY, 50, 40);
+                    compCtx.strokeStyle = '#3498db';
+                    compCtx.setLineDash([5, 3]);
+                    compCtx.strokeRect(x, bucketY, 50, 40);
+                    compCtx.setLineDash([]);
+
+                    compCtx.fillStyle = '#3498db';
+                    compCtx.font = 'bold 10px Arial';
+                    compCtx.fillText('CAS', x + 12, bucketY + 25);
+                } else {
+                    // 空桶
+                    compCtx.strokeStyle = '#34495e';
+                    compCtx.setLineDash([5, 3]);
+                    compCtx.strokeRect(x, bucketY, 50, 40);
+                    compCtx.setLineDash([]);
+                }
+
+                compCtx.font = '12px Arial';
+            }
+        }
+
+        function animateJDK7() {
+            resetComparison();
+            let frame = 0;
+            const threads = [
+                {x: 50, y: 120, target: 1, color: '#e74c3c'},
+                {x: 50, y: 210, target: 1, color: '#e74c3c'},
+                {x: 50, y: 300, target: 3, color: '#c0392b'}
+            ];
+
+            function animate() {
+                compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+                drawComparisonStatic();
+
+                // 绘制线程
+                threads.forEach((thread, idx) => {
+                    if (frame < 60) {
+                        thread.x += 1.5;
+                    }
+
+                    compCtx.fillStyle = thread.color;
+                    compCtx.beginPath();
+                    compCtx.arc(thread.x, thread.y, 8, 0, Math.PI * 2);
+                    compCtx.fill();
+                    compCtx.fillStyle = '#fff';
+                    compCtx.font = 'bold 10px Arial';
+                    compCtx.fillText(`T${idx+1}`, thread.x - 6, thread.y + 3);
+                });
+
+                // 显示竞争
+                if (frame > 60 && frame < 120) {
+                    compCtx.fillStyle = 'rgba(231, 76, 60, 0.6)';
+                    compCtx.fillRect(140, 170, 320, 80);
+                    compCtx.strokeStyle = '#e74c3c';
+                    compCtx.lineWidth = 3;
+                    compCtx.strokeRect(140, 170, 320, 80);
+
+                    compCtx.fillStyle = '#fff';
+                    compCtx.font = 'bold 16px Arial';
+                    compCtx.fillText('⚠️ 锁竞争！T1和T2阻塞', 180, 215);
+                }
+
+                frame++;
+                if (frame < 120) {
+                    compAnimationId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        }
+
+        function animateJDK8() {
+            resetComparison();
+            let frame = 0;
+            const threads = [
+                {x: 650, y: 150, target: 2, color: '#2ecc71'},
+                {x: 650, y: 230, target: 3, color: '#3498db'},
+                {x: 650, y: 330, target: 5, color: '#2ecc71'}
+            ];
+
+            function animate() {
+                compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+                drawComparisonStatic();
+
+                threads.forEach((thread, idx) => {
+                    if (frame < 60) {
+                        thread.x += 1.5;
+                    }
+
+                    compCtx.fillStyle = thread.color;
+                    compCtx.beginPath();
+                    compCtx.arc(thread.x, thread.y, 8, 0, Math.PI * 2);
+                    compCtx.fill();
+                    compCtx.fillStyle = '#fff';
+                    compCtx.font = 'bold 10px Arial';
+                    compCtx.fillText(`T${idx+1}`, thread.x - 6, thread.y + 3);
+                });
+
+                if (frame > 60) {
+                    compCtx.fillStyle = 'rgba(46, 204, 113, 0.3)';
+                    compCtx.fillRect(740, 130, 300, 240);
+                    compCtx.strokeStyle = '#2ecc71';
+                    compCtx.lineWidth = 2;
+                    compCtx.strokeRect(740, 130, 300, 240);
+
+                    compCtx.fillStyle = '#2ecc71';
+                    compCtx.font = 'bold 16px Arial';
+                    compCtx.fillText('✅ 无竞争！并发执行', 770, 260);
+                }
+
+                frame++;
+                if (frame < 120) {
+                    compAnimationId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        }
+
+        // ============================================
+        // Tab 2: Put 流程动画
+        // ============================================
+        const putCanvas = document.getElementById('putCanvas');
+        const putCtx = putCanvas.getContext('2d');
+        let putAnimationId = null;
+        let putStep = 0;
+        let isPutPaused = false;
+        let isPutRunning = false;
+
+        const putSteps = [
+            '步骤1: 计算Hash值 - spread(key.hashCode())',
+            '步骤2: 定位桶位置 - (n-1) & hash',
+            '步骤3: 检查数组是否初始化',
+            '步骤4: 检查桶是否为空',
+            '步骤5: CAS尝试插入新节点',
+            '步骤6: CAS成功，插入完成！',
+            '步骤7: 调用addCount增加计数'
+        ];
+
+        function resetPutAnimation() {
+            if (putAnimationId) cancelAnimationFrame(putAnimationId);
+            isPutRunning = false;
+            isPutPaused = false;
+            putStep = 0;
+            putCtx.clearRect(0, 0, putCanvas.width, putCanvas.height);
+            document.getElementById('putStep').textContent = '准备开始 Put 操作演示...';
+            drawPutStatic();
+        }
+
+        function drawPutStatic() {
+            putCtx.clearRect(0, 0, putCanvas.width, putCanvas.height);
+
+            // 绘制数组
+            putCtx.fillStyle = '#ecf0f1';
+            putCtx.font = 'bold 18px Arial';
+            putCtx.fillText('Node[] table', 50, 40);
+
+            for (let i = 0; i < 8; i++) {
+                const x = 100 + i * 120;
+                const y = 80;
+
+                putCtx.strokeStyle = '#34495e';
+                putCtx.lineWidth = 2;
+                putCtx.strokeRect(x, y, 100, 60);
+
+                putCtx.fillStyle = '#95a5a6';
+                putCtx.font = '14px Arial';
+                putCtx.fillText(`[${i}]`, x + 40, y - 10);
+
+                // 一些桶有数据
+                if (i === 1 || i === 4) {
+                    putCtx.fillStyle = '#f39c12';
+                    putCtx.fillRect(x + 10, y + 10, 80, 40);
+                    putCtx.strokeRect(x + 10, y + 10, 80, 40);
+                    putCtx.fillStyle = '#fff';
+                    putCtx.font = '12px Arial';
+                    putCtx.fillText('Node', x + 30, y + 35);
+                }
+            }
+        }
+
+        function startPutAnimation() {
+            if (isPutRunning) return;
+            isPutRunning = true;
+            isPutPaused = false;
+            putStep = 0;
+            animatePut();
+        }
+
+        function pausePutAnimation() {
+            isPutPaused = !isPutPaused;
+        }
+
+        function stepPutAnimation() {
+            isPutPaused = true;
+            if (putStep < putSteps.length) {
+                putStep++;
+                drawPutStep(putStep);
+            }
+        }
+
+        function animatePut() {
+            if (!isPutRunning) return;
+            if (isPutPaused) {
+                putAnimationId = requestAnimationFrame(animatePut);
+                return;
+            }
+
+            if (putStep < putSteps.length) {
+                drawPutStep(putStep);
+                putStep++;
+                setTimeout(() => {
+                    putAnimationId = requestAnimationFrame(animatePut);
+                }, 1500);
+            } else {
+                isPutRunning = false;
+            }
+        }
+
+        function drawPutStep(step) {
+            putCtx.clearRect(0, 0, putCanvas.width, putCanvas.height);
+            drawPutStatic();
+
+            document.getElementById('putStep').textContent = putSteps[step] || '演示完成！';
+
+            const key = {text: 'key="user123"', hash: 5};
+
+            switch(step) {
+                case 0: // 计算hash
+                    drawKeyValue(100, 200, key.text);
+                    drawArrow(200, 230, 200, 280);
+                    drawHashBox(150, 290, 'hash = spread(key.hashCode())');
+                    drawHashBox(150, 340, `hash = ${key.hash}`);
+                    break;
+
+                case 1: // 定位桶
+                    drawKeyValue(100, 200, key.text);
+                    drawHashBox(150, 250, `hash = ${key.hash}`);
+                    drawHashBox(150, 300, `index = (8-1) & ${key.hash} = ${key.hash}`);
+
+                    // 高亮目标桶
+                    const targetX = 100 + key.hash * 120;
+                    putCtx.strokeStyle = '#3498db';
+                    putCtx.lineWidth = 4;
+                    putCtx.strokeRect(targetX, 80, 100, 60);
+                    break;
+
+                case 2: // 检查初始化
+                    putCtx.fillStyle = '#2ecc71';
+                    putCtx.font = 'bold 16px Arial';
+                    putCtx.fillText('✓ 数组已初始化', 400, 200);
+                    break;
+
+                case 3: // 检查桶是否为空
+                    const checkX = 100 + key.hash * 120;
+                    putCtx.strokeStyle = '#f39c12';
+                    putCtx.lineWidth = 4;
+                    putCtx.setLineDash([10, 5]);
+                    putCtx.strokeRect(checkX, 80, 100, 60);
+                    putCtx.setLineDash([]);
+
+                    putCtx.fillStyle = '#f39c12';
+                    putCtx.font = 'bold 16px Arial';
+                    putCtx.fillText('检查: 桶为空', checkX - 20, 180);
+                    break;
+
+                case 4: // CAS尝试
+                    const casX = 100 + key.hash * 120;
+                    putCtx.strokeStyle = '#3498db';
+                    putCtx.lineWidth = 3;
+                    putCtx.strokeRect(casX, 80, 100, 60);
+
+                    drawNewNode(casX + 50, 200);
+                    drawArrow(casX + 50, 240, casX + 50, 140);
+
+                    putCtx.fillStyle = '#3498db';
+                    putCtx.font = 'bold 14px Arial';
+                    putCtx.fillText('CAS(null, newNode)', casX - 30, 300);
+                    break;
+
+                case 5: // CAS成功
+                    const successX = 100 + key.hash * 120;
+                    putCtx.fillStyle = '#2ecc71';
+                    putCtx.fillRect(successX + 10, 90, 80, 40);
+                    putCtx.strokeStyle = '#27ae60';
+                    putCtx.lineWidth = 2;
+                    putCtx.strokeRect(successX + 10, 90, 80, 40);
+
+                    putCtx.fillStyle = '#fff';
+                    putCtx.font = '12px Arial';
+                    putCtx.fillText('user123', successX + 20, 115);
+
+                    // 成功标记
+                    putCtx.fillStyle = '#2ecc71';
+                    putCtx.font = 'bold 20px Arial';
+                    putCtx.fillText('✓ CAS 成功！', 500, 300);
+                    putCtx.font = '14px Arial';
+                    putCtx.fillText('无锁插入完成', 500, 330);
+                    break;
+
+                case 6: // 增加计数
+                    drawCounterUpdate();
+                    break;
+            }
+        }
+
+        function drawKeyValue(x, y, text) {
+            putCtx.fillStyle = 'rgba(155, 89, 182, 0.3)';
+            putCtx.fillRect(x, y, 200, 40);
+            putCtx.strokeStyle = '#9b59b6';
+            putCtx.lineWidth = 2;
+            putCtx.strokeRect(x, y, 200, 40);
+
+            putCtx.fillStyle = '#ecf0f1';
+            putCtx.font = 'bold 14px Arial';
+            putCtx.fillText(text, x + 10, y + 25);
+        }
+
+        function drawHashBox(x, y, text) {
+            putCtx.fillStyle = 'rgba(52, 152, 219, 0.2)';
+            putCtx.fillRect(x, y, 300, 35);
+            putCtx.strokeStyle = '#3498db';
+            putCtx.strokeRect(x, y, 300, 35);
+
+            putCtx.fillStyle = '#ecf0f1';
+            putCtx.font = '14px Arial';
+            putCtx.fillText(text, x + 10, y + 22);
+        }
+
+        function drawArrow(x1, y1, x2, y2) {
+            putCtx.strokeStyle = '#e67e22';
+            putCtx.lineWidth = 3;
+            putCtx.beginPath();
+            putCtx.moveTo(x1, y1);
+            putCtx.lineTo(x2, y2);
+            putCtx.stroke();
+
+            // 箭头
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            putCtx.beginPath();
+            putCtx.moveTo(x2, y2);
+            putCtx.lineTo(x2 - 10 * Math.cos(angle - Math.PI / 6), y2 - 10 * Math.sin(angle - Math.PI / 6));
+            putCtx.moveTo(x2, y2);
+            putCtx.lineTo(x2 - 10 * Math.cos(angle + Math.PI / 6), y2 - 10 * Math.sin(angle + Math.PI / 6));
+            putCtx.stroke();
+        }
+
+        function drawNewNode(x, y) {
+            putCtx.fillStyle = '#2ecc71';
+            putCtx.fillRect(x - 40, y, 80, 40);
+            putCtx.strokeStyle = '#27ae60';
+            putCtx.lineWidth = 2;
+            putCtx.strokeRect(x - 40, y, 80, 40);
+
+            putCtx.fillStyle = '#fff';
+            putCtx.font = 'bold 12px Arial';
+            putCtx.fillText('NewNode', x - 30, y + 25);
+        }
+
+        function drawCounterUpdate() {
+            putCtx.fillStyle = '#f39c12';
+            putCtx.font = 'bold 18px Arial';
+            putCtx.fillText('addCount(1, binCount)', 400, 250);
+
+            putCtx.fillStyle = 'rgba(243, 156, 18, 0.2)';
+            putCtx.fillRect(350, 280, 400, 80);
+            putCtx.strokeStyle = '#f39c12';
+            putCtx.lineWidth = 2;
+            putCtx.strokeRect(350, 280, 400, 80);
+
+            putCtx.fillStyle = '#ecf0f1';
+            putCtx.font = '14px Arial';
+            putCtx.fillText('1. CAS更新baseCount或CounterCell', 370, 310);
+            putCtx.fillText('2. 检查是否需要扩容', 370, 335);
+        }
+
+        // ============================================
+        // Tab 3: 扩容机制动画
+        // ============================================
+        const resizeCanvas = document.getElementById('resizeCanvas');
+        const resizeCtx = resizeCanvas.getContext('2d');
+        let resizeAnimationId = null;
+        let resizeFrame = 0;
+        let isResizePaused = false;
+        let isResizeRunning = false;
+
+        function resetResizeAnimation() {
+            if (resizeAnimationId) cancelAnimationFrame(resizeAnimationId);
+            isResizeRunning = false;
+            isResizePaused = false;
+            resizeFrame = 0;
+            resizeCtx.clearRect(0, 0, resizeCanvas.width, resizeCanvas.height);
+            document.getElementById('resizeStep').textContent = '准备开始扩容演示...';
+        }
+
+        function startResizeAnimation() {
+            if (isResizeRunning) return;
+            isResizeRunning = true;
+            isResizePaused = false;
+            resizeFrame = 0;
+            animateResize();
+        }
+
+        function pauseResizeAnimation() {
+            isResizePaused = !isResizePaused;
+        }
+
+        function animateResize() {
+            if (!isResizeRunning) return;
+            if (isResizePaused) {
+                resizeAnimationId = requestAnimationFrame(animateResize);
+                return;
+            }
+
+            resizeCtx.clearRect(0, 0, resizeCanvas.width, resizeCanvas.height);
+
+            if (resizeFrame < 60) {
+                document.getElementById('resizeStep').textContent = '阶段1: 旧数组已满，触发扩容';
+                drawOldArray(100, 100, resizeFrame / 60);
+            } else if (resizeFrame < 120) {
+                document.getElementById('resizeStep').textContent = '阶段2: 创建2倍大小的新数组';
+                drawOldArray(100, 100, 1);
+                drawNewArray(100, 320, (resizeFrame - 60) / 60);
+            } else if (resizeFrame < 240) {
+                document.getElementById('resizeStep').textContent = '阶段3: 多线程协助迁移数据';
+                drawOldArray(100, 100, 1);
+                drawNewArray(100, 320, 1);
+                drawMigration(resizeFrame - 120);
+            } else if (resizeFrame < 300) {
+                document.getElementById('resizeStep').textContent = '阶段4: 扩容完成，切换table引用';
+                drawNewArray(100, 320, 1);
+                drawComplete();
+            } else {
+                isResizeRunning = false;
+                return;
+            }
+
+            resizeFrame++;
+            resizeAnimationId = requestAnimationFrame(animateResize);
+        }
+
+        function drawOldArray(x, y, progress) {
+            resizeCtx.fillStyle = '#ecf0f1';
+            resizeCtx.font = 'bold 16px Arial';
+            resizeCtx.fillText('旧数组 (容量: 8)', x, y - 20);
+
+            for (let i = 0; i < 8; i++) {
+                const bucketX = x + i * 120;
+
+                resizeCtx.strokeStyle = '#e74c3c';
+                resizeCtx.lineWidth = 2;
+                resizeCtx.strokeRect(bucketX, y, 100, 60);
+
+                // 大部分桶有数据（模拟负载高）
+                if (i !== 0 && i !== 7) {
+                    resizeCtx.fillStyle = 'rgba(231, 76, 60, 0.5)';
+                    resizeCtx.fillRect(bucketX + 5, y + 5, 90, 50);
+
+                    resizeCtx.fillStyle = '#fff';
+                    resizeCtx.font = '12px Arial';
+                    resizeCtx.fillText('Data', bucketX + 35, y + 35);
+                }
+
+                resizeCtx.fillStyle = '#95a5a6';
+                resizeCtx.font = '12px Arial';
+                resizeCtx.fillText(`[${i}]`, bucketX + 40, y - 5);
+            }
+
+            // 负载提示
+            if (progress > 0.5) {
+                resizeCtx.fillStyle = '#e74c3c';
+                resizeCtx.font = 'bold 14px Arial';
+                resizeCtx.fillText('⚠️ 负载因子 > 0.75，触发扩容！', x + 250, y + 100);
+            }
+        }
+
+        function drawNewArray(x, y, progress) {
+            resizeCtx.globalAlpha = progress;
+
+            resizeCtx.fillStyle = '#2ecc71';
+            resizeCtx.font = 'bold 16px Arial';
+            resizeCtx.fillText('新数组 (容量: 16)', x, y - 20);
+
+            for (let i = 0; i < 16; i++) {
+                const bucketX = x + (i % 8) * 120;
+                const bucketY = y + Math.floor(i / 8) * 80;
+
+                resizeCtx.strokeStyle = '#2ecc71';
+                resizeCtx.lineWidth = 2;
+                resizeCtx.strokeRect(bucketX, bucketY, 100, 60);
+
+                resizeCtx.fillStyle = '#95a5a6';
+                resizeCtx.font = '12px Arial';
+                resizeCtx.fillText(`[${i}]`, bucketX + 35, bucketY - 5);
+            }
+
+            resizeCtx.globalAlpha = 1;
+        }
+
+        function drawMigration(frame) {
+            const progress = frame / 120;
+            const migratedCount = Math.floor(progress * 8);
+
+            // 绘制迁移线程
+            for (let i = 0; i < 3; i++) {
+                const threadX = 50 + i * 350;
+                const threadY = 250;
+
+                resizeCtx.fillStyle = ['#3498db', '#9b59b6', '#e67e22'][i];
+                resizeCtx.beginPath();
+                resizeCtx.arc(threadX, threadY, 12, 0, Math.PI * 2);
+                resizeCtx.fill();
+
+                resizeCtx.fillStyle = '#fff';
+                resizeCtx.font = 'bold 10px Arial';
+                resizeCtx.fillText(`T${i+1}`, threadX - 6, threadY + 4);
+            }
+
+            // 标记已迁移的桶
+            for (let i = 0; i < migratedCount; i++) {
+                const oldX = 100 + i * 120;
+                const oldY = 100;
+
+                // ForwardingNode标记
+                resizeCtx.fillStyle = 'rgba(52, 152, 219, 0.7)';
+                resizeCtx.fillRect(oldX + 5, oldY + 5, 90, 50);
+                resizeCtx.fillStyle = '#fff';
+                resizeCtx.font = 'bold 10px Arial';
+                resizeCtx.fillText('MOVED', oldX + 28, oldY + 35);
+
+                // 迁移箭头
+                resizeCtx.strokeStyle = '#3498db';
+                resizeCtx.lineWidth = 2;
+                resizeCtx.setLineDash([5, 5]);
+                resizeCtx.beginPath();
+                resizeCtx.moveTo(oldX + 50, oldY + 60);
+                resizeCtx.lineTo(oldX + 50, oldY + 260);
+                resizeCtx.stroke();
+                resizeCtx.setLineDash([]);
+            }
+        }
+
+        function drawComplete() {
+            resizeCtx.fillStyle = '#2ecc71';
+            resizeCtx.font = 'bold 24px Arial';
+            resizeCtx.fillText('✓ 扩容完成！', 500, 150);
+
+            resizeCtx.fillStyle = '#ecf0f1';
+            resizeCtx.font = '16px Arial';
+            resizeCtx.fillText('table = nextTable', 500, 190);
+        }
+
+        // ============================================
+        // Tab 4: 计数原理动画
+        // ============================================
+        const counterCanvas = document.getElementById('counterCanvas');
+        const counterCtx = counterCanvas.getContext('2d');
+        let counterAnimationId = null;
+        let counterFrame = 0;
+
+        function resetCounterAnimation() {
+            if (counterAnimationId) cancelAnimationFrame(counterAnimationId);
+            counterFrame = 0;
+            counterCtx.clearRect(0, 0, counterCanvas.width, counterCanvas.height);
+            document.getElementById('counterStep').textContent = '准备演示计数原理...';
+            drawCounterStatic();
+        }
+
+        function drawCounterStatic() {
+            counterCtx.clearRect(0, 0, counterCanvas.width, counterCanvas.height);
+
+            // baseCount
+            drawBaseCount(200, 100, 0);
+
+            // CounterCell数组
+            drawCounterCells(500, 100, [0, 0, 0, 0]);
+        }
+
+        function drawBaseCount(x, y, value) {
+            counterCtx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+            counterCtx.fillRect(x, y, 150, 80);
+            counterCtx.strokeStyle = '#3498db';
+            counterCtx.lineWidth = 2;
+            counterCtx.strokeRect(x, y, 150, 80);
+
+            counterCtx.fillStyle = '#ecf0f1';
+            counterCtx.font = 'bold 16px Arial';
+            counterCtx.fillText('baseCount', x + 30, y + 30);
+            counterCtx.font = 'bold 24px Arial';
+            counterCtx.fillStyle = '#3498db';
+            counterCtx.fillText(value.toString(), x + 60, y + 60);
+        }
+
+        function drawCounterCells(x, y, values) {
+            counterCtx.fillStyle = '#ecf0f1';
+            counterCtx.font = 'bold 16px Arial';
+            counterCtx.fillText('CounterCell[]', x, y - 20);
+
+            values.forEach((val, i) => {
+                const cellX = x + i * 140;
+
+                counterCtx.fillStyle = 'rgba(46, 204, 113, 0.3)';
+                counterCtx.fillRect(cellX, y, 120, 80);
+                counterCtx.strokeStyle = '#2ecc71';
+                counterCtx.lineWidth = 2;
+                counterCtx.strokeRect(cellX, y, 120, 80);
+
+                counterCtx.fillStyle = '#95a5a6';
+                counterCtx.font = '12px Arial';
+                counterCtx.fillText(`Cell[${i}]`, cellX + 40, y + 20);
+
+                counterCtx.fillStyle = '#2ecc71';
+                counterCtx.font = 'bold 20px Arial';
+                counterCtx.fillText(val.toString(), cellX + 50, y + 55);
+            });
+        }
+
+        function startCounterAnimation() {
+            resetCounterAnimation();
+            counterFrame = 0;
+            animateCounter();
+        }
+
+        function animateCounter() {
+            counterCtx.clearRect(0, 0, counterCanvas.width, counterCanvas.height);
+
+            const baseValue = Math.min(counterFrame, 5);
+            const cellValues = [
+                Math.min(Math.max(0, counterFrame - 5), 10),
+                Math.min(Math.max(0, counterFrame - 8), 8),
+                Math.min(Math.max(0, counterFrame - 12), 6),
+                Math.min(Math.max(0, counterFrame - 15), 4)
+            ];
+
+            drawBaseCount(200, 100, baseValue);
+            drawCounterCells(500, 100, cellValues);
+
+            // 绘制线程
+            if (counterFrame < 60) {
+                for (let i = 0; i < 4; i++) {
+                    const threadX = 100 + i * 250;
+                    const threadY = 300 - Math.sin(counterFrame * 0.1 + i) * 30;
+
+                    counterCtx.fillStyle = ['#e74c3c', '#3498db', '#9b59b6', '#e67e22'][i];
+                    counterCtx.beginPath();
+                    counterCtx.arc(threadX, threadY, 15, 0, Math.PI * 2);
+                    counterCtx.fill();
+
+                    counterCtx.fillStyle = '#fff';
+                    counterCtx.font = 'bold 12px Arial';
+                    counterCtx.fillText(`T${i+1}`, threadX - 8, threadY + 4);
+                }
+
+                // 显示当前步骤
+                if (counterFrame < 5) {
+                    document.getElementById('counterStep').textContent = '低竞争: CAS更新baseCount';
+                } else if (counterFrame < 20) {
+                    document.getElementById('counterStep').textContent = '高竞争: 分散到CounterCell数组';
+                } else {
+                    document.getElementById('counterStep').textContent = '总数 = baseCount + Σ(Cell[i].value) = ' +
+                        (baseValue + cellValues.reduce((a, b) => a + b, 0));
+                }
+            }
+
+            counterFrame++;
+            if (counterFrame < 90) {
+                counterAnimationId = requestAnimationFrame(animateCounter);
+            }
+        }
+
+        function simulateHighConcurrency() {
+            resetCounterAnimation();
+            let frame = 0;
+
+            function animate() {
+                counterCtx.clearRect(0, 0, counterCanvas.width, counterCanvas.height);
+
+                const threads = 16;
+                const baseValue = 3;
+                const cellValues = [15, 12, 18, 9];
+
+                drawBaseCount(200, 100, baseValue);
+                drawCounterCells(500, 100, cellValues);
+
+                // 大量线程
+                for (let i = 0; i < threads; i++) {
+                    const angle = (i / threads) * Math.PI * 2 + frame * 0.05;
+                    const threadX = 600 + Math.cos(angle) * 200;
+                    const threadY = 300 + Math.sin(angle) * 120;
+
+                    counterCtx.fillStyle = `hsl(${i * 22.5}, 70%, 60%)`;
+                    counterCtx.beginPath();
+                    counterCtx.arc(threadX, threadY, 10, 0, Math.PI * 2);
+                    counterCtx.fill();
+                }
+
+                document.getElementById('counterStep').textContent =
+                    `高并发场景: ${threads}个线程并发计数 | 总数 = ${baseValue + cellValues.reduce((a,b)=>a+b,0)}`;
+
+                frame++;
+                if (frame < 120) {
+                    counterAnimationId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        }
+
+        // 初始化
+        window.onload = function() {
+            drawComparisonStatic();
+            drawPutStatic();
+        };
+    </script>
+</body>
+</html>
