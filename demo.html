@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ThreadLocal可视化演示</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e3a5f);
+    color: #f1f5f9;
+    min-height: 100vh;
+    padding: 20px;
+}
+.container { max-width: 1400px; margin: 0 auto; }
+.header {
+    text-align: center;
+    padding: 30px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 16px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    margin-bottom: 30px;
+}
+.header h1 {
+    font-size: 2.5rem;
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.main {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 20px;
+}
+.canvas {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 30px;
+    border: 2px solid rgba(59, 130, 246, 0.2);
+    min-height: 600px;
+    position: relative;
+}
+.sidebar { display: flex; flex-direction: column; gap: 20px; }
+.panel {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 20px;
+    border: 2px solid rgba(59, 130, 246, 0.2);
+}
+.panel h3 { color: #3b82f6; margin-bottom: 15px; }
+.btn {
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+    border: none;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 5px 0;
+    width: 100%;
+    transition: all 0.3s;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+.btn.secondary { background: #334155; }
+.box {
+    position: absolute;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.5s;
+}
+.thread { background: linear-gradient(135deg, #1e40af, #3b82f6); border: 3px solid #3b82f6; }
+.threadlocal { background: linear-gradient(135deg, #7c3aed, #a855f7); border: 2px solid #8b5cf6; padding: 15px; }
+.map { background: #334155; border: 2px solid #10b981; }
+.entry {
+    background: linear-gradient(135deg, #374151, #4b5563);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    border: 2px solid #94a3b8;
+}
+.entry.glow { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.5); }
+.weak { color: #ec4899; }
+.strong { color: #10b981; }
+.null { color: #ef4444; animation: blink 1s infinite; }
+@keyframes blink { 0%, 50%, 100% { opacity: 1; } 25%, 75% { opacity: 0.3; } }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+.fadein { animation: fadeIn 0.5s ease; }
+.progress {
+    width: 100%;
+    height: 8px;
+    background: #334155;
+    border-radius: 4px;
+    margin: 15px 0;
+}
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    transition: width 0.3s;
+}
+.code {
+    background: #334155;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+    border-left: 4px solid #3b82f6;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+.gc {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #ef4444;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.gc.active { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>ThreadLocal 底层原理可视化演示</h1>
+<p>深入理解 Thread、ThreadLocal、ThreadLocalMap 的关系及内存泄漏问题</p>
+</div>
+<div class="main">
+<div class="canvas" id="canvas">
+<svg id="svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+<polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6"/>
+</marker>
+<marker id="arrow-weak" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+<polygon points="0 0, 10 3.5, 0 7" fill="#ec4899"/>
+</marker>
+</defs>
+</svg>
+<div class="gc" id="gc">GC 回收中...</div>
+</div>
+<div class="sidebar">
+<div class="panel">
+<h3>控制面板</h3>
+<button class="btn" onclick="load(0)">1. 结构关系</button>
+<button class="btn" onclick="load(1)">2. 弱引用Entry</button>
+<button class="btn" onclick="load(2)">3. 内存泄漏</button>
+<button class="btn" onclick="load(3)">4. set()流程</button>
+<button class="btn" onclick="load(4)">5. get()流程</button>
+<button class="btn secondary" onclick="prev()">上一步</button>
+<button class="btn secondary" onclick="next()">下一步</button>
+<button class="btn" onclick="toggle()" id="auto">自动播放</button>
+<button class="btn secondary" onclick="reset()">重置</button>
+</div>
+<div class="panel">
+<h3>当前步骤</h3>
+<div id="step">步骤 1/5</div>
+<div class="progress"><div class="progress-bar" id="prog" style="width:20%"></div></div>
+<div id="desc">选择一个场景开始学习</div>
+<div class="code" id="code" style="display:none"></div>
+</div>
+</div>
+</div>
+</div>
+<script>
+let scene=null,idx=0,auto=false,timer=null;
+const data={
+0:[
+{d:'<b>ThreadLocal基础结构</b><br>核心涉及三个类：Thread、ThreadLocal、ThreadLocalMap',c:'public class Thread {\n  ThreadLocalMap threadLocals;\n}',r:()=>{clr();box('thread',50,50,'Thread-1','thread');box('tl',400,50,'ThreadLocal','threadlocal');box('map',50,200,'ThreadLocalMap','map');}},
+{d:'<b>Thread持有ThreadLocalMap</b><br>每个Thread对象内部都有一个threadLocals属性',c:'Thread thread = new Thread();',r:()=>{arr('thread','map');lbl(20,160,'强引用');}},
+{d:'<b>ThreadLocal作为访问入口</b><br>ThreadLocal对象本身不存储数据，只是访问接口',c:'ThreadLocal<String> local = new ThreadLocal<>();\nlocal.set("value");',r:()=>{}},
+{d:'<b>ThreadLocalMap内部结构</b><br>使用Entry[]数组存储，key是ThreadLocal弱引用',c:'static class Entry extends WeakReference<ThreadLocal> {\n  Object value;\n}',r:()=>{ent('map',0,'ThreadLocal@123','"Hello"');}},
+{d:'<b>完整关系总结</b><br>ThreadLocal既是外部访问入口，也是Map的key',c:'',r:()=>{arr('tl','ent-0',true);lbl(340,180,'弱引用');}}
+],
+1:[
+{d:'<b>为什么使用弱引用？</b><br>Entry的key是ThreadLocal的弱引用，防止内存泄漏',c:'Entry(ThreadLocal k, Object v) {\n  super(k); // 弱引用\n  value = v;\n}',r:()=>{clr();box('thread',50,50,'Thread-1','thread');box('tl',400,50,'ThreadLocal','threadlocal');box('map',50,200,'ThreadLocalMap','map');ent('map',0,'ThreadLocal@123','"value"');}},
+{d:'<b>强引用 vs 弱引用</b><br>强引用：对象永远不会被GC回收<br>弱引用：下次GC时会被回收',c:'ThreadLocal<String> strongRef = new ThreadLocal<>();',r:()=>{lbl(400,20,'栈变量(强引用)');arr('tl','ent-0',true);lbl(340,150,'弱引用');}},
+{d:'<b>引用链分析</b><br>ThreadLocal有两条引用链：栈变量(强)和Entry.key(弱)',c:'',r:()=>{}},
+{d:'<b>栈变量置空后</b><br>GC后Entry.key=null，但Entry.value仍存在，这是内存泄漏的根源',c:'threadLocal = null;\n// GC后: Entry.key = null',r:()=>{ge('tl').style.opacity='0.3';setTimeout(()=>{gc();setTimeout(()=>{ge('tl').style.display='none';ge('ent-0').innerHTML='<div class="null">key: null (已回收)</div><div class="strong">value: "value" ⚠️ 仍存在</div>';},1000);},500);}},
+{d:'<b>弱引用的作用</b><br>弱引用让ThreadLocal可以被回收，但仍需手动remove()清理',c:'threadLocal.remove(); // ✅ 最佳实践',r:()=>{ge('ent-0').style.opacity='0.3';lbl(350,250,'✅ 调用remove()后');}}
+],
+2:[
+{d:'<b>内存泄漏场景</b><br>Thread存活时间长（如线程池）、ThreadLocal外部引用被清除、没调用remove()',c:'pool.execute(() -> {\n  ThreadLocal<byte[]> local = new ThreadLocal<>();\n  local.set(new byte[10MB]);\n  // ⚠️ 没有调用 remove()\n});',r:()=>{clr();box('thread',50,50,'线程池线程','thread');box('map',50,200,'ThreadLocalMap','map');}},
+{d:'<b>线程池场景</b><br>线程池中的线程会被复用，Thread对象一直存活',c:'',r:()=>{box('tl',400,50,'ThreadLocal','threadlocal');ent('map',0,'ThreadLocal@123','byte[10MB]');arr('thread
