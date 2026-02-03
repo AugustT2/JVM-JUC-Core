@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReentrantLock 可视化讲解</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        /* 模式选择 */
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            padding: 12px 24px;
+            border: 2px solid #00d9ff;
+            background: transparent;
+            color: #00d9ff;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .mode-btn:hover, .mode-btn.active {
+            background: #00d9ff;
+            color: #1a1a2e;
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.5);
+        }
+
+        /* 主要布局 */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+
+        /* 动画区域 */
+        .animation-area {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 500px;
+            position: relative;
+        }
+
+        .animation-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #00ff88;
+        }
+
+        /* Canvas */
+        #canvas {
+            width: 100%;
+            height: 450px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+
+        /* 右侧面板 */
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            color: #00d9ff;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* AQS 状态 */
+        .aqs-state {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .state-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .state-label {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .state-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .state-value.locked {
+            color: #ff6b6b;
+        }
+
+        /* 步骤说明 */
+        .step-description {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            line-height: 1.6;
+            min-height: 100px;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #00d9ff;
+            color: #1a1a2e;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .ctrl-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .ctrl-btn.primary {
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            color: #1a1a2e;
+        }
+
+        .ctrl-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .ctrl-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 217, 255, 0.3);
+        }
+
+        .ctrl-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 代码展示 */
+        .code-block {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+
+        .code-block .keyword {
+            color: #ff7b72;
+        }
+
+        .code-block .type {
+            color: #79c0ff;
+        }
+
+        .code-block .number {
+            color: #a5d6ff;
+        }
+
+        .code-block .comment {
+            color: #8b949e;
+        }
+
+        .code-block .string {
+            color: #a5d6ff;
+        }
+
+        /* 文档区域 */
+        .docs-section {
+            margin-top: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+        }
+
+        .docs-section h2 {
+            color: #00d9ff;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .docs-section h3 {
+            color: #00ff88;
+            margin: 25px 0 15px 0;
+            font-size: 1.2rem;
+        }
+
+        .docs-section p {
+            line-height: 1.8;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
+        .docs-section ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .docs-section li {
+            line-height: 1.8;
+            color: #ccc;
+            margin-bottom: 8px;
+        }
+
+        .highlight-box {
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 4px solid #00d9ff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: rgba(255, 107, 107, 0.1);
+            border-left: 4px solid #ff6b6b;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* 对比表格 */
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        .compare-table th, .compare-table td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .compare-table th {
+            background: rgba(0, 217, 255, 0.2);
+            color: #00d9ff;
+        }
+
+        .compare-table td {
+            color: #ccc;
+        }
+
+        .compare-table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* 线程图例 */
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+
+        .legend-color.running {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+
+        .legend-color.waiting {
+            background: #ffd93d;
+        }
+
+        .legend-color.blocked {
+            background: #6c757d;
+        }
+
+        .legend-color.queued {
+            background: #00d9ff;
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ReentrantLock 源码可视化</h1>
+        <p class="subtitle">深入理解 AQS 与可重入锁的底层原理</p>
+
+        <!-- 模式选择 -->
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setMode('fair')">公平锁</button>
+            <button class="mode-btn" onclick="setMode('unfair')">非公平锁</button>
+            <button class="mode-btn" onclick="setMode('reentrant')">可重入演示</button>
+            <button class="mode-btn" onclick="setMode('compare')">对比模式</button>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="main-content">
+            <!-- 动画区域 -->
+            <div class="animation-area">
+                <div class="animation-title" id="animationTitle">公平锁获取流程</div>
+                <canvas id="canvas"></canvas>
+
+                <!-- 图例 -->
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color running"></div>
+                        <span>持有锁/运行中</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color waiting"></div>
+                        <span>尝试获取锁</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color queued"></div>
+                        <span>队列中等待</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color blocked"></div>
+                        <span>阻塞 (park)</span>
+                    </div>
+                </div>
+
+                <!-- 控制按钮 -->
+                <div class="controls">
+                    <button class="ctrl-btn secondary" onclick="prevStep()" id="prevBtn">上一步</button>
+                    <button class="ctrl-btn primary" onclick="nextStep()" id="nextBtn">下一步</button>
+                    <button class="ctrl-btn secondary" onclick="toggleAutoPlay()" id="autoBtn">自动播放</button>
+                    <button class="ctrl-btn secondary" onclick="reset()">重置</button>
+                </div>
+            </div>
+
+            <!-- 右侧面板 -->
+            <div class="side-panel">
+                <!-- AQS 状态 -->
+                <div class="panel-box">
+                    <div class="panel-title">AQS 状态</div>
+                    <div class="aqs-state">
+                        <div class="state-item">
+                            <div class="state-label">state</div>
+                            <div class="state-value" id="stateValue">0</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="state-label">owner</div>
+                            <div class="state-value" id="ownerValue" style="font-size: 1rem;">null</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="state-label">队列长度</div>
+                            <div class="state-value" id="queueLength">0</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="state-label">当前步骤</div>
+                            <div class="state-value" id="currentStep">0/0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 步骤说明 -->
+                <div class="panel-box">
+                    <div class="panel-title">步骤说明</div>
+                    <div class="step-description" id="stepDescription">
+                        点击"下一步"开始演示
+                    </div>
+                </div>
+
+                <!-- 当前代码 -->
+                <div class="panel-box">
+                    <div class="panel-title">关键代码</div>
+                    <div class="code-block" id="codeBlock">
+<span class="comment">// 点击开始查看代码</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文档区域 -->
+        <div class="docs-section">
+            <h2>ReentrantLock 核心原理详解</h2>
+
+            <h3>1. AQS (AbstractQueuedSynchronizer) 核心机制</h3>
+            <p>ReentrantLock 的底层实现依赖于 AQS，这是 Doug Lea 设计的一个用于构建锁和同步器的框架。</p>
+
+            <div class="highlight-box">
+                <strong>AQS 三大核心组件：</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>state</strong>：volatile int，表示同步状态。0 表示未锁定，≥1 表示已锁定（支持可重入）</li>
+                    <li><strong>exclusiveOwnerThread</strong>：记录当前持有锁的线程</li>
+                    <li><strong>CLH 队列</strong>：双向链表，存储等待获取锁的线程节点</li>
+                </ul>
+            </div>
+
+            <h3>2. 公平锁 vs 非公平锁</h3>
+            <table class="compare-table">
+                <tr>
+                    <th>特性</th>
+                    <th>公平锁 (FairSync)</th>
+                    <th>非公平锁 (NonfairSync)</th>
+                </tr>
+                <tr>
+                    <td>获取顺序</td>
+                    <td>严格按照 FIFO 队列顺序</td>
+                    <td>允许插队，新线程可直接尝试获取</td>
+                </tr>
+                <tr>
+                    <td>吞吐量</td>
+                    <td>较低</td>
+                    <td>较高（减少线程切换）</td>
+                </tr>
+                <tr>
+                    <td>饥饿问题</td>
+                    <td>不会产生饥饿</td>
+                    <td>可能导致某些线程长时间等待</td>
+                </tr>
+                <tr>
+                    <td>默认选择</td>
+                    <td>需显式指定 new ReentrantLock(true)</td>
+                    <td>默认：new ReentrantLock()</td>
+                </tr>
+            </table>
+
+            <div class="code-block">
+<span class="comment">// 非公平锁的 lock 方法</span>
+<span class="keyword">final void</span> <span class="type">lock</span>() {
+    <span class="comment">// 直接尝试 CAS 获取锁（插队）</span>
+    <span class="keyword">if</span> (compareAndSetState(<span class="number">0</span>, <span class="number">1</span>))
+        setExclusiveOwnerThread(Thread.currentThread());
+    <span class="keyword">else</span>
+        acquire(<span class="number">1</span>); <span class="comment">// 失败则走正常流程</span>
+}
+
+<span class="comment">// 公平锁的 tryAcquire 方法</span>
+<span class="keyword">protected final boolean</span> <span class="type">tryAcquire</span>(<span class="keyword">int</span> acquires) {
+    <span class="comment">// 必须检查队列中是否有前驱节点</span>
+    <span class="keyword">if</span> (!hasQueuedPredecessors() &&
+        compareAndSetState(<span class="number">0</span>, acquires)) {
+        setExclusiveOwnerThread(Thread.currentThread());
+        <span class="keyword">return true</span>;
+    }
+    <span class="keyword">return false</span>;
+}
+            </div>
+
+            <h3>3. 可重入实现原理</h3>
+            <p>可重入锁允许同一线程多次获取同一把锁，避免死锁。实现关键在于 state 计数器：</p>
+
+            <div class="code-block">
+<span class="keyword">final boolean</span> <span class="type">nonfairTryAcquire</span>(<span class="keyword">int</span> acquires) {
+    Thread current = Thread.currentThread();
+    <span class="keyword">int</span> c = getState();
+
+    <span class="keyword">if</span> (c == <span class="number">0</span>) {
+        <span class="comment">// 锁空闲，CAS 获取</span>
+        <span class="keyword">if</span> (compareAndSetState(<span class="number">0</span>, acquires)) {
+            setExclusiveOwnerThread(current);
+            <span class="keyword">return true</span>;
+        }
+    } <span class="keyword">else if</span> (current == getExclusiveOwnerThread()) {
+        <span class="comment">// 可重入：同一线程再次获取，state + 1</span>
+        <span class="keyword">int</span> nextc = c + acquires;
+        <span class="keyword">if</span> (nextc < <span class="number">0</span>) <span class="comment">// overflow</span>
+            <span class="keyword">throw new</span> Error(<span class="string">"Maximum lock count exceeded"</span>);
+        setState(nextc);
+        <span class="keyword">return true</span>;
+    }
+    <span class="keyword">return false</span>;
+}
+            </div>
+
+            <div class="warning-box">
+                <strong>面试考点：为什么需要可重入？</strong>
+                <p style="margin-top: 10px;">如果锁不可重入，当同一线程在持有锁时调用另一个需要同一把锁的方法，就会产生死锁。例如：</p>
+                <pre style="margin-top: 10px; color: #ccc;">
+synchronized void methodA() {
+    methodB(); // 如果不可重入，这里会死锁
+}
+synchronized void methodB() {
+    // ...
+}</pre>
+            </div>
+
+            <h3>4. lock() 完整流程</h3>
+            <ol style="margin-left: 20px; color: #ccc; line-height: 2;">
+                <li><strong>tryAcquire</strong>：尝试直接获取锁（CAS 设置 state）</li>
+                <li><strong>addWaiter</strong>：获取失败，将当前线程包装成 Node 加入 CLH 队列尾部</li>
+                <li><strong>acquireQueued</strong>：在队列中自旋，检查是否轮到自己</li>
+                <li><strong>shouldParkAfterFailedAcquire</strong>：设置前驱节点状态为 SIGNAL</li>
+                <li><strong>parkAndCheckInterrupt</strong>：调用 LockSupport.park() 阻塞线程</li>
+                <li><strong>被唤醒后</strong>：继续自旋尝试获取锁</li>
+            </ol>
+
+            <h3>5. unlock() 完整流程</h3>
+            <div class="code-block">
+<span class="keyword">public void</span> <span class="type">unlock</span>() {
+    sync.release(<span class="number">1</span>);
+}
+
+<span class="keyword">protected final boolean</span> <span class="type">tryRelease</span>(<span class="keyword">int</span> releases) {
+    <span class="keyword">int</span> c = getState() - releases;
+    <span class="keyword">if</span> (Thread.currentThread() != getExclusiveOwnerThread())
+        <span class="keyword">throw new</span> IllegalMonitorStateException();
+
+    <span class="keyword">boolean</span> free = <span class="keyword">false</span>;
+    <span class="keyword">if</span> (c == <span class="number">0</span>) {
+        <span class="comment">// state 归零，真正释放锁</span>
+        free = <span class="keyword">true</span>;
+        setExclusiveOwnerThread(<span class="keyword">null</span>);
+    }
+    setState(c); <span class="comment">// 可重入：state - 1</span>
+    <span class="keyword">return</span> free;
+}
+
+<span class="comment">// 释放后唤醒后继节点</span>
+<span class="keyword">private void</span> <span class="type">unparkSuccessor</span>(Node node) {
+    Node s = node.next;
+    <span class="keyword">if</span> (s != <span class="keyword">null</span>)
+        LockSupport.unpark(s.thread);
+}
+            </div>
+
+            <h3>6. 面试高频问题</h3>
+
+            <div class="highlight-box">
+                <strong>Q1: ReentrantLock 和 synchronized 的区别？</strong>
+                <table class="compare-table" style="margin-top: 10px;">
+                    <tr>
+                        <th>特性</th>
+                        <th>ReentrantLock</th>
+                        <th>synchronized</th>
+                    </tr>
+                    <tr>
+                        <td>实现</td>
+                        <td>JDK 层面（AQS）</td>
+                        <td>JVM 层面（monitor）</td>
+                    </tr>
+                    <tr>
+                        <td>公平性</td>
+                        <td>支持公平/非公平</td>
+                        <td>非公平</td>
+                    </tr>
+                    <tr>
+                        <td>可中断</td>
+                        <td>lockInterruptibly()</td>
+                        <td>不支持</td>
+                    </tr>
+                    <tr>
+                        <td>超时获取</td>
+                        <td>tryLock(timeout)</td>
+                        <td>不支持</td>
+                    </tr>
+                    <tr>
+                        <td>条件变量</td>
+                        <td>多个 Condition</td>
+                        <td>单一 wait/notify</td>
+                    </tr>
+                    <tr>
+                        <td>释放方式</td>
+                        <td>必须手动 unlock()</td>
+                        <td>自动释放</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Q2: 为什么非公平锁性能更好？</strong>
+                <p style="margin-top: 10px;">
+                    非公平锁允许新到达的线程直接尝试获取锁，如果此时锁刚好释放，新线程可以直接获取，
+                    避免了线程切换的开销。而公平锁必须唤醒队列中的线程，涉及到线程上下文切换，
+                    这个过程需要操作系统介入，开销较大。
+                </p>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Q3: CLH 队列是什么？</strong>
+                <p style="margin-top: 10px;">
+                    CLH 队列是一个虚拟的双向队列（不存在真实的 Queue 对象），通过 Node 节点的 prev 和 next 指针连接。
+                    AQS 维护了 head 和 tail 两个指针。head 是一个哑节点（dummy node），不存储线程信息，
+                    真正等待的线程从 head.next 开始。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentMode = 'fair';
+        let currentStepIndex = 0;
+        let isAutoPlaying = false;
+        let autoPlayTimer = null;
+        let canvas, ctx;
+        let steps = [];
+
+        // 线程颜色
+        const threadColors = {
+            T1: '#00ff88',
+            T2: '#00d9ff',
+            T3: '#ffd93d',
+            T4: '#ff6b6b',
+            T5: '#c084fc'
+        };
+
+        // 初始化
+        window.onload = function() {
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            setMode('fair');
+        };
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            draw();
+        }
+
+        // 设置模式
+        function setMode(mode) {
+            currentMode = mode;
+            currentStepIndex = 0;
+
+            // 更新按钮状态
+            document.querySelectorAll('.mode-btn').forEach((btn, index) => {
+                btn.classList.remove('active');
+                if ((mode === 'fair' && index === 0) ||
+                    (mode === 'unfair' && index === 1) ||
+                    (mode === 'reentrant' && index === 2) ||
+                    (mode === 'compare' && index === 3)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 设置步骤数据
+            switch(mode) {
+                case 'fair':
+                    document.getElementById('animationTitle').textContent = '公平锁获取流程';
+                    steps = getFairLockSteps();
+                    break;
+                case 'unfair':
+                    document.getElementById('animationTitle').textContent = '非公平锁获取流程';
+                    steps = getUnfairLockSteps();
+                    break;
+                case 'reentrant':
+                    document.getElementById('animationTitle').textContent = '可重入锁演示';
+                    steps = getReentrantSteps();
+                    break;
+                case 'compare':
+                    document.getElementById('animationTitle').textContent = '公平锁 vs 非公平锁对比';
+                    steps = getCompareSteps();
+                    break;
+            }
+
+            updateUI();
+            draw();
+        }
+
+        // 公平锁步骤
+        function getFairLockSteps() {
+            return [
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'ready', x: 100, y: 200 },
+                        { id: 'T2', status: 'ready', x: 100, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: '初始状态：三个线程准备竞争锁，state=0 表示锁空闲',
+                    code: `// 三个线程准备获取锁
+ReentrantLock lock = new ReentrantLock(true); // 公平锁
+// T1, T2, T3 同时调用 lock.lock()`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'trying', x: 250, y: 200 },
+                        { id: 'T2', status: 'ready', x: 100, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: 'T1 首先尝试获取锁，调用 tryAcquire()，检查 hasQueuedPredecessors()',
+                    code: `// FairSync.tryAcquire()
+if (!hasQueuedPredecessors() &&  // 检查队列
+    compareAndSetState(0, 1)) {  // CAS
+    setExclusiveOwnerThread(current);
+    return true;
+}`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'ready', x: 100, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: 'T1 获取锁成功！state=1, owner=T1',
+                    code: `// T1 成功获取锁
+state = 1;
+exclusiveOwnerThread = T1;
+// T1 开始执行临界区代码`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'trying', x: 250, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: 'T2 尝试获取锁，发现 state=1（锁被占用），tryAcquire 返回 false',
+                    code: `// T2 调用 tryAcquire
+int c = getState(); // c = 1
+if (c == 0) { ... } // 条件不满足
+// tryAcquire 返回 false`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2'],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'queued', x: 550, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: 'T2 调用 addWaiter() 加入 CLH 队列，然后 park() 阻塞',
+                    code: `// addWaiter(Node.EXCLUSIVE)
+Node node = new Node(Thread.currentThread());
+// 加入队列尾部
+// acquireQueued() -> parkAndCheckInterrupt()
+LockSupport.park(this); // T2 阻塞`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2'],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'trying', x: 250, y: 360 }
+                    ],
+                    description: 'T3 也尝试获取锁，同样失败',
+                    code: `// T3 调用 tryAcquire
+// state = 1，锁被 T1 持有
+// tryAcquire 返回 false`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 }
+                    ],
+                    description: 'T3 也加入队列并阻塞，队列顺序：T2 → T3',
+                    code: `// T3 加入队列
+// CLH 队列：head -> T2 -> T3
+// T3 调用 park() 阻塞`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'releasing', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 }
+                    ],
+                    description: 'T1 执行完毕，调用 unlock() 释放锁',
+                    code: `// T1 调用 unlock()
+lock.unlock();
+// -> sync.release(1)
+// -> tryRelease(1)`
+                },
+                {
+                    state: 0, owner: null, queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'waking', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 }
+                    ],
+                    description: 'state 归零，调用 unparkSuccessor() 唤醒队列头部的 T2',
+                    code: `// tryRelease 成功
+state = 0;
+exclusiveOwnerThread = null;
+// unparkSuccessor(head)
+LockSupport.unpark(T2); // 唤醒 T2`
+                },
+                {
+                    state: 1, owner: 'T2', queue: ['T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'holding', x: 450, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 }
+                    ],
+                    description: '公平锁：T2 是队列第一个，获取锁成功！T3 继续等待',
+                    code: `// T2 被唤醒，继续 acquireQueued
+// tryAcquire 成功
+state = 1;
+exclusiveOwnerThread = T2;`
+                },
+                {
+                    state: 0, owner: null, queue: ['T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'done', x: 450, y: 280 },
+                        { id: 'T3', status: 'waking', x: 550, y: 360 }
+                    ],
+                    description: 'T2 释放锁，唤醒 T3',
+                    code: `// T2 unlock()
+state = 0;
+LockSupport.unpark(T3);`
+                },
+                {
+                    state: 1, owner: 'T3', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'done', x: 450, y: 280 },
+                        { id: 'T3', status: 'holding', x: 450, y: 360 }
+                    ],
+                    description: '公平锁完成！获取顺序严格按照 T1 → T2 → T3',
+                    code: `// 公平锁特点：FIFO 顺序
+// 获取顺序：T1 -> T2 -> T3
+// 不会出现插队现象`
+                }
+            ];
+        }
+
+        // 非公平锁步骤
+        function getUnfairLockSteps() {
+            return [
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'ready', x: 100, y: 200 },
+                        { id: 'T2', status: 'ready', x: 100, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: '初始状态：使用非公平锁（默认）',
+                    code: `// 非公平锁（默认）
+ReentrantLock lock = new ReentrantLock();
+// 等价于 new ReentrantLock(false)`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'ready', x: 100, y: 280 },
+                        { id: 'T3', status: 'ready', x: 100, y: 360 }
+                    ],
+                    description: 'T1 获取锁成功',
+                    code: `// NonfairSync.lock()
+if (compareAndSetState(0, 1)) // 直接 CAS
+    setExclusiveOwnerThread(current);`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 }
+                    ],
+                    description: 'T2、T3 获取失败，进入队列等待',
+                    code: `// T2, T3 tryAcquire 失败
+// 加入 CLH 队列
+// park() 阻塞`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 },
+                        { id: 'T4', status: 'new', x: 100, y: 120, highlight: true }
+                    ],
+                    description: '【关键】此时新线程 T4 到达，准备获取锁',
+                    code: `// 新线程 T4 到达
+// T4.lock()
+// 注意：T2、T3 还在队列中等待`
+                },
+                {
+                    state: 1, owner: 'T1', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'releasing', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 },
+                        { id: 'T4', status: 'trying', x: 250, y: 120, highlight: true }
+                    ],
+                    description: 'T1 正在释放锁的瞬间，T4 直接尝试 CAS',
+                    code: `// NonfairSync.lock()
+// T4 直接尝试 CAS，不检查队列！
+if (compareAndSetState(0, 1)) {
+    // 如果 T1 刚释放，T4 可能成功
+}`
+                },
+                {
+                    state: 1, owner: 'T4', queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'blocked', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 },
+                        { id: 'T4', status: 'holding', x: 450, y: 120, highlight: true }
+                    ],
+                    description: '【插队成功】T4 直接获取锁！T2、T3 继续等待',
+                    code: `// T4 插队成功！
+state = 1;
+exclusiveOwnerThread = T4;
+// T2, T3 还在队列中等待
+// 这就是非公平锁的"插队"现象`
+                },
+                {
+                    state: 0, owner: null, queue: ['T2', 'T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'waking', x: 550, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 },
+                        { id: 'T4', status: 'done', x: 450, y: 120 }
+                    ],
+                    description: 'T4 释放锁，唤醒 T2',
+                    code: `// T4 unlock()
+// 唤醒队列头部 T2`
+                },
+                {
+                    state: 1, owner: 'T2', queue: ['T3'],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 200 },
+                        { id: 'T2', status: 'holding', x: 450, y: 280 },
+                        { id: 'T3', status: 'blocked', x: 620, y: 360 },
+                        { id: 'T4', status: 'done', x: 450, y: 120 }
+                    ],
+                    description: '非公平锁：实际获取顺序 T1 → T4 → T2 → T3',
+                    code: `// 非公平锁获取顺序
+// T1 -> T4(插队) -> T2 -> T3
+// 优点：减少线程切换，吞吐量高
+// 缺点：可能导致线程饥饿`
+                }
+            ];
+        }
+
+        // 可重入步骤
+        function getReentrantSteps() {
+            return [
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'ready', x: 100, y: 280 }
+                    ],
+                    description: '可重入演示：同一线程多次获取同一把锁',
+                    code: `// 可重入场景
+void methodA() {
+    lock.lock();    // 第一次获取
+    methodB();      // 调用需要同一把锁的方法
+    lock.unlock();
+}
+void methodB() {
+    lock.lock();    // 第二次获取（可重入）
+    lock.unlock();
+}`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 1 }
+                    ],
+                    description: 'T1 第一次获取锁，state = 1',
+                    code: `// T1 第一次 lock()
+compareAndSetState(0, 1); // CAS 成功
+setExclusiveOwnerThread(T1);
+// state = 1`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 1, trying: true }
+                    ],
+                    description: 'T1 在持有锁的情况下，再次调用 lock()',
+                    code: `// methodA 调用 methodB
+// T1 再次调用 lock.lock()
+// 此时 state = 1, owner = T1`
+                },
+                {
+                    state: 2, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 2 }
+                    ],
+                    description: '【可重入】检测到是同一线程，state + 1 = 2',
+                    code: `// nonfairTryAcquire
+if (current == getExclusiveOwnerThread()) {
+    // 是同一个线程！可重入
+    int nextc = c + 1; // 1 + 1 = 2
+    setState(nextc);
+    return true;
+}`
+                },
+                {
+                    state: 3, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 3 }
+                    ],
+                    description: 'T1 第三次获取锁，state = 3（模拟递归调用）',
+                    code: `// 继续嵌套调用
+// state = 3
+// 每次重入 state + 1`
+                },
+                {
+                    state: 2, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 2, releasing: true }
+                    ],
+                    description: 'T1 第一次 unlock()，state = 2（还未完全释放）',
+                    code: `// 第一次 unlock()
+int c = getState() - 1; // 3 - 1 = 2
+if (c == 0) { ... } // 条件不满足
+setState(c); // state = 2
+return false; // 锁未完全释放`
+                },
+                {
+                    state: 1, owner: 'T1', queue: [],
+                    threads: [
+                        { id: 'T1', status: 'holding', x: 450, y: 280, reentrantCount: 1, releasing: true }
+                    ],
+                    description: 'T1 第二次 unlock()，state = 1',
+                    code: `// 第二次 unlock()
+// state = 1
+// 锁仍被 T1 持有`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 280 }
+                    ],
+                    description: 'T1 第三次 unlock()，state = 0，锁完全释放！',
+                    code: `// 第三次 unlock()
+int c = getState() - 1; // 1 - 1 = 0
+if (c == 0) {
+    // state 归零，真正释放锁
+    setExclusiveOwnerThread(null);
+}
+setState(c); // state = 0
+return true; // 锁完全释放`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [
+                        { id: 'T1', status: 'done', x: 450, y: 280 }
+                    ],
+                    description: '重要：lock() 和 unlock() 必须成对出现！',
+                    code: `// 最佳实践
+lock.lock();
+try {
+    // 临界区代码
+} finally {
+    lock.unlock(); // 确保释放
+}`
+                }
+            ];
+        }
+
+        // 对比步骤
+        function getCompareSteps() {
+            return [
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: '对比模式：展示公平锁和非公平锁的核心差异',
+                    code: `// 公平锁
+new ReentrantLock(true);
+// 非公平锁（默认）
+new ReentrantLock();`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: '差异1：lock() 方法入口',
+                    code: `// 非公平锁 NonfairSync.lock()
+final void lock() {
+    // 直接尝试 CAS（插队机会1）
+    if (compareAndSetState(0, 1))
+        setExclusiveOwnerThread(current);
+    else
+        acquire(1);
+}
+
+// 公平锁 FairSync.lock()
+final void lock() {
+    acquire(1); // 没有插队机会
+}`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: '差异2：tryAcquire() 实现',
+                    code: `// 非公平锁 nonfairTryAcquire
+if (c == 0) {
+    // 直接 CAS，不检查队列（插队机会2）
+    if (compareAndSetState(0, 1)) { ... }
+}
+
+// 公平锁 FairSync.tryAcquire
+if (c == 0) {
+    // 必须先检查队列！
+    if (!hasQueuedPredecessors() &&
+        compareAndSetState(0, 1)) { ... }
+}`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: 'hasQueuedPredecessors() 关键方法',
+                    code: `// 检查是否有前驱节点
+public final boolean hasQueuedPredecessors() {
+    Node t = tail;
+    Node h = head;
+    Node s;
+    return h != t &&
+        ((s = h.next) == null ||
+         s.thread != Thread.currentThread());
+}
+// true: 有其他线程在排队，不能插队
+// false: 队列为空或自己是第一个，可以获取`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: '性能对比',
+                    code: `/*
+ * 非公平锁性能更高的原因：
+ *
+ * 场景：T1 释放锁，T2 在队列中等待，T3 刚到达
+ *
+ * 公平锁：
+ *   1. T1 释放锁 -> unpark(T2)
+ *   2. T2 被唤醒（线程切换开销）
+ *   3. T2 获取锁
+ *
+ * 非公平锁：
+ *   1. T1 释放锁
+ *   2. T3 直接 CAS 成功（无需线程切换）
+ *   3. T3 执行完释放
+ *   4. T2 再获取
+ *
+ * 如果 T3 执行很快，整体吞吐量更高
+ */`
+                },
+                {
+                    state: 0, owner: null, queue: [],
+                    threads: [],
+                    description: '如何选择？',
+                    code: `/*
+ * 选择公平锁：
+ *   - 需要严格的执行顺序
+ *   - 不能容忍线程饥饿
+ *   - 业务对公平性有要求
+ *
+ * 选择非公平锁（推荐）：
+ *   - 追求更高吞吐量
+ *   - 临界区执行时间短
+ *   - 可以容忍偶尔的乱序
+ *
+ * 默认使用非公平锁，除非有特殊需求
+ */`
+                }
+            ];
+        }
+
+        // 更新 UI
+        function updateUI() {
+            const step = steps[currentStepIndex];
+
+            // 更新 AQS 状态
+            const stateEl = document.getElementById('stateValue');
+            stateEl.textContent = step.state;
+            stateEl.className = step.state > 0 ? 'state-value locked' : 'state-value';
+
+            document.getElementById('ownerValue').textContent = step.owner || 'null';
+            document.getElementById('queueLength').textContent = step.queue.length;
+            document.getElementById('currentStep').textContent = `${currentStepIndex + 1}/${steps.length}`;
+
+            // 更新步骤说明
+            document.getElementById('stepDescription').innerHTML =
+                `<span class="step-number">${currentStepIndex + 1}</span>${step.description}`;
+
+            // 更新代码
+            document.getElementById('codeBlock').innerHTML = formatCode(step.code);
+
+            // 更新按钮状态
+            document.getElementById('prevBtn').disabled = currentStepIndex === 0;
+            document.getElementById('nextBtn').disabled = currentStepIndex === steps.length - 1;
+        }
+
+        // 格式化代码
+        function formatCode(code) {
+            return code
+                .replace(/\/\/.*/g, '<span class="comment">$&</span>')
+                .replace(/\/\*[\s\S]*?\*\//g, '<span class="comment">$&</span>')
+                .replace(/\b(if|else|return|new|void|int|boolean|final|throw|try|finally|true|false|null|this)\b/g, '<span class="keyword">$1</span>')
+                .replace(/\b(Thread|ReentrantLock|Node|LockSupport)\b/g, '<span class="type">$1</span>')
+                .replace(/\b(\d+)\b/g, '<span class="number">$1</span>');
+        }
+
+        // 绘制
+        function draw() {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const step = steps[currentStepIndex];
+
+            // 绘制锁
+            drawLock(width / 2, 80, step.state > 0, step.owner);
+
+            // 绘制 CLH 队列
+            drawQueue(width - 150, 200, step.queue);
+
+            // 绘制线程
+            if (step.threads) {
+                step.threads.forEach(thread => {
+                    drawThread(thread, step);
+                });
+            }
+
+            // 绘制模式特定元素
+            if (currentMode === 'compare') {
+                drawCompareMode(width, height);
+            }
+        }
+
+        // 绘制锁
+        function drawLock(x, y, locked, owner) {
+            ctx.save();
+
+            // 锁体
+            ctx.beginPath();
+            ctx.roundRect(x - 40, y, 80, 60, 8);
+            ctx.fillStyle = locked ? 'rgba(255, 107, 107, 0.3)' : 'rgba(0, 255, 136, 0.3)';
+            ctx.fill();
+            ctx.strokeStyle = locked ? '#ff6b6b' : '#00ff88';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 锁环
+            ctx.beginPath();
+            ctx.arc(x, y, 20, Math.PI, 0, false);
+            ctx.strokeStyle = locked ? '#ff6b6b' : '#00ff88';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // 文字
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.fillText(locked ? '已锁定' : '空闲', x, y + 35);
+
+            if (owner) {
+                ctx.fillStyle = threadColors[owner] || '#fff';
+                ctx.fillText(`owner: ${owner}`, x, y + 55);
+            }
+
+            ctx.restore();
+        }
+
+        // 绘制队列
+        function drawQueue(x, y, queue) {
+            ctx.save();
+
+            // 队列标题
+            ctx.fillStyle = '#00d9ff';
+            ctx.font = '14px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.fillText('CLH 队列', x, y - 20);
+
+            // 队列背景
+            ctx.beginPath();
+            ctx.roundRect(x - 60, y, 120, 180, 8);
+            ctx.fillStyle = 'rgba(0, 217, 255, 0.1)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 217, 255, 0.3)';
+            ctx.stroke();
+
+            // 头节点
+            ctx.beginPath();
+            ctx.roundRect(x - 40, y + 10, 80, 30, 4);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fill();
+            ctx.fillStyle = '#888';
+            ctx.font = '12px Microsoft YaHei';
+            ctx.fillText('head (哑节点)', x, y + 30);
+
+            // 队列中的线程
+            queue.forEach((threadId, index) => {
+                const nodeY = y + 50 + index * 40;
+
+                // 节点
+                ctx.beginPath();
+                ctx.roundRect(x - 40, nodeY, 80, 30, 4);
+                ctx.fillStyle = threadColors[threadId] + '33';
+                ctx.fill();
+                ctx.strokeStyle = threadColors[threadId];
+                ctx.stroke();
+
+                // 线程名
+                ctx.fillStyle = threadColors[threadId];
+                ctx.font = 'bold 12px Microsoft YaHei';
+                ctx.fillText(threadId, x, nodeY + 20);
+
+                // 连接线
+                if (index > 0 || true) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, nodeY);
+                    ctx.lineTo(x, nodeY - 10);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.stroke();
+
+                    // 箭头
+                    ctx.beginPath();
+                    ctx.moveTo(x - 5, nodeY - 5);
+                    ctx.lineTo(x, nodeY - 10);
+                    ctx.lineTo(x + 5, nodeY - 5);
+                    ctx.stroke();
+                }
+            });
+
+            ctx.restore();
+        }
+
+        // 绘制线程
+        function drawThread(thread, step) {
+            ctx.save();
+
+            const { id, status, x, y, reentrantCount, highlight, trying, releasing } = thread;
+            const color = threadColors[id] || '#fff';
+
+            // 发光效果
+            if (status === 'holding' || highlight) {
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+            }
+
+            // 线程圆圈
+            ctx.beginPath();
+            ctx.arc(x, y, 25, 0, Math.PI * 2);
+
+            // 根据状态设置颜色
+            let fillColor, strokeColor;
+            switch(status) {
+                case 'holding':
+                    fillColor = color + '44';
+                    strokeColor = color;
+                    break;
+                case 'blocked':
+                    fillColor = 'rgba(108, 117, 125, 0.3)';
+                    strokeColor = '#6c757d';
+                    break;
+                case 'queued':
+                    fillColor = 'rgba(0, 217, 255, 0.3)';
+                    strokeColor = '#00d9ff';
+                    break;
+                case 'trying':
+                case 'waking':
+                    fillColor = 'rgba(255, 217, 61, 0.3)';
+                    strokeColor = '#ffd93d';
+                    break;
+                case 'done':
+                    fillColor = 'rgba(108, 117, 125, 0.2)';
+                    strokeColor = '#6c757d';
+                    break;
+                case 'releasing':
+                    fillColor = 'rgba(255, 107, 107, 0.3)';
+                    strokeColor = '#ff6b6b';
+                    break;
+                default:
+                    fillColor = color + '22';
+                    strokeColor = color;
+            }
+
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 线程名
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(id, x, y);
+
+            // 可重入计数
+            if (reentrantCount) {
+                ctx.beginPath();
+                ctx.arc(x + 20, y - 20, 12, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(reentrantCount, x + 20, y - 20);
+            }
+
+            // 状态标签
+            let statusText = '';
+            switch(status) {
+                case 'holding': statusText = '持有锁'; break;
+                case 'blocked': statusText = 'park()'; break;
+                case 'queued': statusText = '入队'; break;
+                case 'trying': statusText = '尝试获取'; break;
+                case 'waking': statusText = 'unpark()'; break;
+                case 'done': statusText = '完成'; break;
+                case 'releasing': statusText = '释放中'; break;
+                case 'ready': statusText = '就绪'; break;
+                case 'new': statusText = '新到达'; break;
+            }
+
+            if (statusText) {
+                ctx.fillStyle = strokeColor;
+                ctx.font = '11px Microsoft YaHei';
+                ctx.fillText(statusText, x, y + 40);
+            }
+
+            // 连接线到锁
+            if (status === 'holding') {
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(x, y - 25);
+                ctx.lineTo(450, 140);
+                ctx.strokeStyle = color + '88';
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        // 绘制对比模式
+        function drawCompareMode(width, height) {
+            ctx.save();
+
+            // 左侧：公平锁
+            ctx.fillStyle = '#00ff88';
+            ctx.font = 'bold 16px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.fillText('公平锁', width * 0.25, 50);
+
+            ctx.fillStyle = '#ccc';
+            ctx.font = '12px Microsoft YaHei';
+            ctx.fillText('hasQueuedPredecessors()', width * 0.25, 80);
+            ctx.fillText('必须检查队列', width * 0.25, 100);
+
+            // 右侧：非公平锁
+            ctx.fillStyle = '#ff6b6b';
+            ctx.font = 'bold 16px Microsoft YaHei';
+            ctx.fillText('非公平锁', width * 0.75, 50);
+
+            ctx.fillStyle = '#ccc';
+            ctx.font = '12px Microsoft YaHei';
+            ctx.fillText('直接 CAS', width * 0.75, 80);
+            ctx.fillText('允许插队', width * 0.75, 100);
+
+            // 中间分隔线
+            ctx.beginPath();
+            ctx.setLineDash([10, 5]);
+            ctx.moveTo(width / 2, 30);
+            ctx.lineTo(width / 2, height - 30);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.restore();
+        }
+
+        // 上一步
+        function prevStep() {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                updateUI();
+                draw();
+            }
+        }
+
+        // 下一步
+        function nextStep() {
+            if (currentStepIndex < steps.length - 1) {
+                currentStepIndex++;
+                updateUI();
+                draw();
+            }
+        }
+
+        // 自动播放
+        function toggleAutoPlay() {
+            isAutoPlaying = !isAutoPlaying;
+            const btn = document.getElementById('autoBtn');
+
+            if (isAutoPlaying) {
+                btn.textContent = '暂停';
+                btn.classList.add('primary');
+                btn.classList.remove('secondary');
+                autoPlayTimer = setInterval(() => {
+                    if (currentStepIndex < steps.length - 1) {
+                        nextStep();
+                    } else {
+                        toggleAutoPlay();
+                    }
+                }, 2000);
+            } else {
+                btn.textContent = '自动播放';
+                btn.classList.remove('primary');
+                btn.classList.add('secondary');
+                clearInterval(autoPlayTimer);
+            }
+        }
+
+        // 重置
+        function reset() {
+            if (isAutoPlaying) {
+                toggleAutoPlay();
+            }
+            currentStepIndex = 0;
+            updateUI();
+            draw();
+        }
+
+        // roundRect polyfill
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                this.closePath();
+                return this;
+            };
+        }
+    </script>
+</body>
+</html>
