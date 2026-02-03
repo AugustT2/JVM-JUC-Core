@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArrayList 底层原理可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+
+        .visualization-area {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .panel h3 {
+            color: #00d9ff;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel h3::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #00d9ff, #00ff88);
+            border-radius: 2px;
+        }
+
+        /* 数组可视化 */
+        .array-container {
+            margin: 20px 0;
+        }
+
+        .array-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .info-item {
+            background: rgba(0,217,255,0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .info-item span {
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .array-visual {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 80px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            border: 2px dashed rgba(255,255,255,0.2);
+            position: relative;
+        }
+
+        .array-slot {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .array-slot.filled {
+            background: linear-gradient(135deg, #00d9ff, #0099cc);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0,217,255,0.4);
+        }
+
+        .array-slot.empty {
+            background: rgba(255,255,255,0.05);
+            border: 2px dashed rgba(255,255,255,0.2);
+            color: #555;
+        }
+
+        .array-slot.highlight-add {
+            animation: pulseGreen 0.5s ease;
+            background: linear-gradient(135deg, #00ff88, #00cc6a) !important;
+        }
+
+        .array-slot.highlight-remove {
+            animation: pulseRed 0.5s ease;
+            background: linear-gradient(135deg, #ff6b6b, #cc0000) !important;
+        }
+
+        .array-slot.shifting-right {
+            animation: shiftRight 0.4s ease;
+        }
+
+        .array-slot.shifting-left {
+            animation: shiftLeft 0.4s ease;
+        }
+
+        .array-slot.expanding {
+            animation: expandPulse 0.6s ease;
+        }
+
+        .slot-index {
+            position: absolute;
+            bottom: -20px;
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        @keyframes pulseGreen {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); box-shadow: 0 0 30px rgba(0,255,136,0.8); }
+        }
+
+        @keyframes pulseRed {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); box-shadow: 0 0 30px rgba(255,107,107,0.8); }
+        }
+
+        @keyframes shiftRight {
+            0% { transform: translateX(-70px); opacity: 0.5; }
+            100% { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes shiftLeft {
+            0% { transform: translateX(70px); opacity: 0.5; }
+            100% { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes expandPulse {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 控制面板 */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff, #0099cc);
+            color: #fff;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #000;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #cc4444);
+            color: #fff;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffd93d, #ffb800);
+            color: #000;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+
+        /* 日志面板 */
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .log-item {
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: 'Consolas', monospace;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .log-item.add { background: rgba(0,255,136,0.1); color: #00ff88; }
+        .log-item.remove { background: rgba(255,107,107,0.1); color: #ff6b6b; }
+        .log-item.expand { background: rgba(255,217,61,0.1); color: #ffd93d; }
+        .log-item.error { background: rgba(255,0,0,0.2); color: #ff4444; }
+        .log-item.info { background: rgba(0,217,255,0.1); color: #00d9ff; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* 迭代器演示 */
+        .iterator-demo {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+        }
+
+        .iterator-info {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .iterator-stat {
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+
+        .iterator-stat.error {
+            background: rgba(255,0,0,0.2);
+            border: 1px solid #ff4444;
+        }
+
+        .iterator-pointer {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.5rem;
+            color: #ffd93d;
+            animation: bounce 0.5s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-5px); }
+        }
+
+        /* 源码展示 */
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .code-block .keyword { color: #569cd6; }
+        .code-block .type { color: #4ec9b0; }
+        .code-block .number { color: #b5cea8; }
+        .code-block .string { color: #ce9178; }
+        .code-block .comment { color: #6a9955; }
+        .code-block .method { color: #dcdcaa; }
+
+        /* 标签页 */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border: none;
+            border-radius: 8px 8px 0 0;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: rgba(0,217,255,0.2);
+            color: #00d9ff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 进度条 */
+        .capacity-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .capacity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00d9ff);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .capacity-fill.warning {
+            background: linear-gradient(90deg, #ffd93d, #ff9500);
+        }
+
+        .capacity-fill.danger {
+            background: linear-gradient(90deg, #ff6b6b, #ff0000);
+        }
+
+        /* 面试考点 */
+        .interview-points {
+            margin-top: 20px;
+        }
+
+        .point-item {
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid #00d9ff;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .point-item h4 {
+            color: #00d9ff;
+            margin-bottom: 5px;
+        }
+
+        .point-item p {
+            color: #aaa;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1000px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            color: #fff;
+            margin: 20px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ArrayList 底层原理可视化</h1>
+        <p class="subtitle">深入理解动态数组的扩容机制、增删操作与 fail-fast 迭代器</p>
+
+        <div class="main-content">
+            <div class="visualization-area">
+                <!-- 数组可视化 -->
+                <div class="array-container">
+                    <div class="array-info">
+                        <div class="info-item">容量 (Capacity): <span id="capacity">10</span></div>
+                        <div class="info-item">大小 (Size): <span id="size">0</span></div>
+                        <div class="info-item">modCount: <span id="modCount">0</span></div>
+                        <div class="info-item">负载: <span id="loadFactor">0%</span></div>
+                    </div>
+                    <div class="capacity-bar">
+                        <div class="capacity-fill" id="capacityFill" style="width: 0%"></div>
+                    </div>
+                    <div class="array-visual" id="arrayVisual"></div>
+                </div>
+
+                <!-- 控制面板 -->
+                <h3 class="section-title">操作面板</h3>
+                <div class="input-group">
+                    <input type="number" id="addValue" placeholder="输入要添加的值" value="">
+                    <input type="number" id="addIndex" placeholder="索引 (可选)">
+                </div>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="addElement()">➕ 添加元素</button>
+                    <button class="btn btn-primary" onclick="addRandom()">🎲 随机添加</button>
+                    <button class="btn btn-danger" onclick="removeElement()">➖ 删除末尾</button>
+                    <button class="btn btn-warning" onclick="removeAtIndex()">🎯 删除指定位置</button>
+                    <button class="btn btn-secondary" onclick="clearArray()">🗑️ 清空</button>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="fillToExpand()">📈 填充至扩容</button>
+                    <button class="btn btn-warning" onclick="demonstrateExpansion()">⚡ 演示扩容</button>
+                </div>
+
+                <!-- 迭代器演示 -->
+                <h3 class="section-title">Fail-Fast 迭代器演示</h3>
+                <div class="iterator-demo">
+                    <div class="iterator-info">
+                        <div class="iterator-stat">
+                            迭代器 expectedModCount: <span id="expectedModCount">-</span>
+                        </div>
+                        <div class="iterator-stat">
+                            ArrayList modCount: <span id="currentModCount">0</span>
+                        </div>
+                        <div class="iterator-stat" id="iteratorStatus">
+                            状态: 未启动
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-success" onclick="safeIteration()">✅ 安全迭代</button>
+                        <button class="btn btn-danger" onclick="unsafeIteration()">❌ 不安全迭代 (触发异常)</button>
+                        <button class="btn btn-secondary" onclick="resetIterator()">🔄 重置</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <!-- 操作日志 -->
+                <div class="panel">
+                    <h3>操作日志</h3>
+                    <div class="log-container" id="logContainer"></div>
+                </div>
+
+                <!-- 源码展示 -->
+                <div class="panel">
+                    <h3>核心源码</h3>
+                    <div class="tabs">
+                        <button class="tab active" onclick="showTab('grow')">扩容</button>
+                        <button class="tab" onclick="showTab('add')">添加</button>
+                        <button class="tab" onclick="showTab('remove')">删除</button>
+                        <button class="tab" onclick="showTab('iterator')">迭代器</button>
+                    </div>
+                    <div id="grow" class="tab-content active">
+                        <div class="code-block">
+<span class="comment">// ArrayList 扩容核心代码</span>
+<span class="keyword">private</span> <span class="type">Object</span>[] <span class="method">grow</span>(<span class="type">int</span> minCapacity) {
+    <span class="type">int</span> oldCapacity = elementData.length;
+    <span class="comment">// 新容量 = 旧容量 * 1.5</span>
+    <span class="type">int</span> newCapacity = oldCapacity +
+        (oldCapacity >> <span class="number">1</span>);
+    <span class="keyword">if</span> (newCapacity < minCapacity)
+        newCapacity = minCapacity;
+    <span class="comment">// 复制到新数组</span>
+    <span class="keyword">return</span> elementData =
+        Arrays.<span class="method">copyOf</span>(elementData,
+            newCapacity);
+}
+                        </div>
+                    </div>
+                    <div id="add" class="tab-content">
+                        <div class="code-block">
+<span class="comment">// 指定位置插入元素</span>
+<span class="keyword">public</span> <span class="type">void</span> <span class="method">add</span>(<span class="type">int</span> index, E element) {
+    <span class="method">rangeCheckForAdd</span>(index);
+    modCount++;
+    <span class="keyword">final</span> <span class="type">int</span> s = size;
+    <span class="keyword">if</span> (s == elementData.length)
+        elementData = <span class="method">grow</span>();
+    <span class="comment">// 元素右移</span>
+    System.<span class="method">arraycopy</span>(elementData,
+        index, elementData, index + <span class="number">1</span>,
+        s - index);
+    elementData[index] = element;
+    size = s + <span class="number">1</span>;
+}
+                        </div>
+                    </div>
+                    <div id="remove" class="tab-content">
+                        <div class="code-block">
+<span class="comment">// 删除指定位置元素</span>
+<span class="keyword">public</span> E <span class="method">remove</span>(<span class="type">int</span> index) {
+    Objects.<span class="method">checkIndex</span>(index, size);
+    <span class="keyword">final</span> <span class="type">Object</span>[] es = elementData;
+    E oldValue = (E) es[index];
+    <span class="method">fastRemove</span>(es, index);
+    <span class="keyword">return</span> oldValue;
+}
+
+<span class="keyword">private</span> <span class="type">void</span> <span class="method">fastRemove</span>(<span class="type">Object</span>[] es, <span class="type">int</span> i) {
+    modCount++;
+    <span class="keyword">final</span> <span class="type">int</span> newSize = size - <span class="number">1</span>;
+    <span class="keyword">if</span> (newSize > i)
+        <span class="comment">// 元素左移</span>
+        System.<span class="method">arraycopy</span>(es, i + <span class="number">1</span>,
+            es, i, newSize - i);
+    es[size = newSize] = <span class="keyword">null</span>;
+}
+                        </div>
+                    </div>
+                    <div id="iterator" class="tab-content">
+                        <div class="code-block">
+<span class="comment">// 迭代器 fail-fast 检查</span>
+<span class="keyword">private</span> <span class="keyword">class</span> <span class="type">Itr</span> <span class="keyword">implements</span> Iterator&lt;E&gt; {
+    <span class="type">int</span> cursor;
+    <span class="type">int</span> expectedModCount = modCount;
+
+    <span class="keyword">public</span> E <span class="method">next</span>() {
+        <span class="method">checkForComodification</span>();
+        <span class="comment">// ... 返回下一个元素</span>
+    }
+
+    <span class="keyword">final</span> <span class="type">void</span> <span class="method">checkForComodification</span>() {
+        <span class="keyword">if</span> (modCount != expectedModCount)
+            <span class="keyword">throw new</span>
+                <span class="type">ConcurrentModificationException</span>();
+    }
+}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 面试考点 -->
+                <div class="panel interview-points">
+                    <h3>面试考点</h3>
+                    <div class="point-item">
+                        <h4>Q: 默认初始容量？</h4>
+                        <p>A: 10。使用无参构造时，首次添加元素时才分配。</p>
+                    </div>
+                    <div class="point-item">
+                        <h4>Q: 扩容倍数？</h4>
+                        <p>A: 1.5 倍。newCapacity = oldCapacity + (oldCapacity >> 1)</p>
+                    </div>
+                    <div class="point-item">
+                        <h4>Q: 线程安全？</h4>
+                        <p>A: 不安全。可用 Collections.synchronizedList() 或 CopyOnWriteArrayList。</p>
+                    </div>
+                    <div class="point-item">
+                        <h4>Q: fail-fast 原理？</h4>
+                        <p>A: 迭代时检查 modCount 与 expectedModCount 是否相等。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ArrayList 模拟类
+        class ArrayList {
+            constructor(initialCapacity = 10) {
+                this.elementData = new Array(initialCapacity);
+                this.size = 0;
+                this.modCount = 0;
+            }
+
+            get capacity() {
+                return this.elementData.length;
+            }
+
+            // 扩容
+            grow(minCapacity = this.size + 1) {
+                const oldCapacity = this.elementData.length;
+                // 新容量 = 旧容量 * 1.5 (右移1位相当于除以2)
+                let newCapacity = oldCapacity + (oldCapacity >> 1);
+                if (newCapacity < minCapacity) {
+                    newCapacity = minCapacity;
+                }
+
+                const newArray = new Array(newCapacity);
+                for (let i = 0; i < this.size; i++) {
+                    newArray[i] = this.elementData[i];
+                }
+                this.elementData = newArray;
+
+                addLog(`扩容: ${oldCapacity} → ${newCapacity} (1.5倍)`, 'expand');
+                return newCapacity;
+            }
+
+            // 添加到末尾
+            add(element) {
+                this.modCount++;
+                if (this.size === this.elementData.length) {
+                    this.grow();
+                }
+                this.elementData[this.size] = element;
+                this.size++;
+                return this.size - 1;
+            }
+
+            // 在指定位置插入
+            addAt(index, element) {
+                if (index < 0 || index > this.size) {
+                    throw new Error(`IndexOutOfBoundsException: ${index}`);
+                }
+                this.modCount++;
+                if (this.size === this.elementData.length) {
+                    this.grow();
+                }
+                // 元素右移
+                for (let i = this.size; i > index; i--) {
+                    this.elementData[i] = this.elementData[i - 1];
+                }
+                this.elementData[index] = element;
+                this.size++;
+                return index;
+            }
+
+            // 删除末尾
+            removeLast() {
+                if (this.size === 0) return null;
+                this.modCount++;
+                const element = this.elementData[this.size - 1];
+                this.elementData[this.size - 1] = undefined;
+                this.size--;
+                return element;
+            }
+
+            // 删除指定位置
+            removeAt(index) {
+                if (index < 0 || index >= this.size) {
+                    throw new Error(`IndexOutOfBoundsException: ${index}`);
+                }
+                this.modCount++;
+                const element = this.elementData[index];
+                // 元素左移
+                for (let i = index; i < this.size - 1; i++) {
+                    this.elementData[i] = this.elementData[i + 1];
+                }
+                this.elementData[this.size - 1] = undefined;
+                this.size--;
+                return element;
+            }
+
+            get(index) {
+                if (index < 0 || index >= this.size) {
+                    throw new Error(`IndexOutOfBoundsException: ${index}`);
+                }
+                return this.elementData[index];
+            }
+
+            clear() {
+                this.modCount++;
+                for (let i = 0; i < this.size; i++) {
+                    this.elementData[i] = undefined;
+                }
+                this.size = 0;
+            }
+
+            // 迭代器
+            iterator() {
+                return new ArrayListIterator(this);
+            }
+        }
+
+        // 迭代器类
+        class ArrayListIterator {
+            constructor(list) {
+                this.list = list;
+                this.cursor = 0;
+                this.expectedModCount = list.modCount;
+            }
+
+            hasNext() {
+                return this.cursor < this.list.size;
+            }
+
+            next() {
+                this.checkForComodification();
+                if (this.cursor >= this.list.size) {
+                    throw new Error('NoSuchElementException');
+                }
+                return this.list.elementData[this.cursor++];
+            }
+
+            checkForComodification() {
+                if (this.list.modCount !== this.expectedModCount) {
+                    throw new Error('ConcurrentModificationException');
+                }
+            }
+        }
+
+        // 全局变量
+        let arrayList = new ArrayList(10);
+        let valueCounter = 1;
+
+        // 日志函数
+        function addLog(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const log = document.createElement('div');
+            log.className = `log-item ${type}`;
+            log.textContent = `[${time}] ${message}`;
+            container.insertBefore(log, container.firstChild);
+
+            // 限制日志数量
+            while (container.children.length > 50) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // 更新显示
+        function updateDisplay(highlightIndex = -1, highlightType = '') {
+            // 更新信息
+            document.getElementById('capacity').textContent = arrayList.capacity;
+            document.getElementById('size').textContent = arrayList.size;
+            document.getElementById('modCount').textContent = arrayList.modCount;
+            document.getElementById('currentModCount').textContent = arrayList.modCount;
+
+            const loadPercent = Math.round((arrayList.size / arrayList.capacity) * 100);
+            document.getElementById('loadFactor').textContent = loadPercent + '%';
+
+            // 更新容量条
+            const capacityFill = document.getElementById('capacityFill');
+            capacityFill.style.width = loadPercent + '%';
+            capacityFill.className = 'capacity-fill';
+            if (loadPercent >= 90) capacityFill.classList.add('danger');
+            else if (loadPercent >= 70) capacityFill.classList.add('warning');
+
+            // 更新数组可视化
+            const visual = document.getElementById('arrayVisual');
+            visual.innerHTML = '';
+
+            for (let i = 0; i < arrayList.capacity; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'array-slot';
+
+                if (i < arrayList.size) {
+                    slot.classList.add('filled');
+                    slot.textContent = arrayList.elementData[i];
+
+                    if (i === highlightIndex) {
+                        slot.classList.add(highlightType);
+                    }
+                } else {
+                    slot.classList.add('empty');
+                    slot.textContent = '空';
+                }
+
+                const indexLabel = document.createElement('span');
+                indexLabel.className = 'slot-index';
+                indexLabel.textContent = `[${i}]`;
+                slot.appendChild(indexLabel);
+
+                visual.appendChild(slot);
+            }
+        }
+
+        // 添加元素
+        async function addElement() {
+            const valueInput = document.getElementById('addValue');
+            const indexInput = document.getElementById('addIndex');
+
+            let value = valueInput.value ? parseInt(valueInput.value) : valueCounter++;
+            const index = indexInput.value !== '' ? parseInt(indexInput.value) : -1;
+
+            try {
+                const needExpand = arrayList.size === arrayList.capacity;
+                let insertedIndex;
+
+                if (index >= 0) {
+                    insertedIndex = arrayList.addAt(index, value);
+                    addLog(`在索引 ${index} 插入元素 ${value}，元素右移`, 'add');
+                } else {
+                    insertedIndex = arrayList.add(value);
+                    addLog(`添加元素 ${value} 到末尾 [${insertedIndex}]`, 'add');
+                }
+
+                if (needExpand) {
+                    // 显示扩容动画
+                    updateDisplay(-1, '');
+                    await sleep(300);
+
+                    const slots = document.querySelectorAll('.array-slot.empty');
+                    slots.forEach((slot, i) => {
+                        setTimeout(() => {
+                            slot.classList.add('expanding');
+                        }, i * 50);
+                    });
+                }
+
+                updateDisplay(insertedIndex, 'highlight-add');
+
+                valueInput.value = '';
+                indexInput.value = '';
+            } catch (e) {
+                addLog(e.message, 'error');
+            }
+        }
+
+        // 随机添加
+        function addRandom() {
+            const randomValue = Math.floor(Math.random() * 100) + 1;
+            document.getElementById('addValue').value = randomValue;
+            addElement();
+        }
+
+        // 删除末尾元素
+        function removeElement() {
+            if (arrayList.size === 0) {
+                addLog('数组为空，无法删除', 'error');
+                return;
+            }
+
+            const removed = arrayList.removeLast();
+            addLog(`删除末尾元素 ${removed}`, 'remove');
+            updateDisplay(arrayList.size, 'highlight-remove');
+        }
+
+        // 删除指定位置
+        function removeAtIndex() {
+            const indexInput = document.getElementById('addIndex');
+            const index = parseInt(indexInput.value);
+
+            if (isNaN(index)) {
+                addLog('请输入要删除的索引', 'error');
+                return;
+            }
+
+            try {
+                const removed = arrayList.removeAt(index);
+                addLog(`删除索引 ${index} 的元素 ${removed}，元素左移`, 'remove');
+                updateDisplay(index, 'highlight-remove');
+                indexInput.value = '';
+            } catch (e) {
+                addLog(e.message, 'error');
+            }
+        }
+
+        // 清空数组
+        function clearArray() {
+            arrayList.clear();
+            addLog('清空数组', 'info');
+            updateDisplay();
+        }
+
+        // 填充至扩容
+        async function fillToExpand() {
+            const remaining = arrayList.capacity - arrayList.size;
+
+            if (remaining === 0) {
+                addLog('数组已满，添加一个元素触发扩容', 'info');
+                await sleep(300);
+                addRandom();
+                return;
+            }
+
+            addLog(`填充 ${remaining} 个元素至容量上限`, 'info');
+
+            for (let i = 0; i < remaining; i++) {
+                arrayList.add(valueCounter++);
+                updateDisplay(arrayList.size - 1, 'highlight-add');
+                await sleep(100);
+            }
+
+            addLog('数组已满，再添加一个元素将触发扩容', 'expand');
+        }
+
+        // 演示扩容
+        async function demonstrateExpansion() {
+            addLog('=== 开始演示扩容机制 ===', 'info');
+
+            // 重置
+            arrayList = new ArrayList(4);
+            valueCounter = 1;
+            updateDisplay();
+            await sleep(500);
+
+            // 填满
+            for (let i = 0; i < 4; i++) {
+                arrayList.add(valueCounter++);
+                addLog(`添加元素 ${valueCounter - 1}，size=${arrayList.size}, capacity=${arrayList.capacity}`, 'add');
+                updateDisplay(arrayList.size - 1, 'highlight-add');
+                await sleep(400);
+            }
+
+            addLog('数组已满！下一次添加将触发扩容...', 'expand');
+            await sleep(800);
+
+            // 触发扩容
+            arrayList.add(valueCounter++);
+            addLog(`添加元素 ${valueCounter - 1}，触发扩容！`, 'add');
+            updateDisplay();
+
+            // 扩容动画
+            await sleep(300);
+            const slots = document.querySelectorAll('.array-slot.empty');
+            slots.forEach((slot, i) => {
+                setTimeout(() => {
+                    slot.classList.add('expanding');
+                }, i * 100);
+            });
+
+            await sleep(500);
+            updateDisplay(arrayList.size - 1, 'highlight-add');
+
+            addLog('=== 扩容演示完成 ===', 'info');
+        }
+
+        // 安全迭代
+        async function safeIteration() {
+            if (arrayList.size === 0) {
+                addLog('请先添加一些元素', 'error');
+                return;
+            }
+
+            addLog('=== 开始安全迭代 ===', 'info');
+            const iterator = arrayList.iterator();
+
+            document.getElementById('expectedModCount').textContent = iterator.expectedModCount;
+            document.getElementById('iteratorStatus').textContent = '状态: 迭代中...';
+            document.getElementById('iteratorStatus').classList.remove('error');
+
+            try {
+                while (iterator.hasNext()) {
+                    const value = iterator.next();
+                    addLog(`迭代读取: ${value}`, 'info');
+
+                    // 高亮当前元素
+                    updateDisplay(iterator.cursor - 1, 'highlight-add');
+                    await sleep(500);
+                }
+
+                document.getElementById('iteratorStatus').textContent = '状态: 迭代完成 ✓';
+                addLog('=== 安全迭代完成 ===', 'info');
+            } catch (e) {
+                document.getElementById('iteratorStatus').textContent = `状态: ${e.message}`;
+                document.getElementById('iteratorStatus').classList.add('error');
+                addLog(e.message, 'error');
+            }
+
+            updateDisplay();
+        }
+
+        // 不安全迭代（触发 ConcurrentModificationException）
+        async function unsafeIteration() {
+            if (arrayList.size < 2) {
+                addLog('请先添加至少2个元素', 'error');
+                return;
+            }
+
+            addLog('=== 开始不安全迭代（边遍历边修改）===', 'info');
+            const iterator = arrayList.iterator();
+
+            document.getElementById('expectedModCount').textContent = iterator.expectedModCount;
+            document.getElementById('iteratorStatus').textContent = '状态: 迭代中...';
+            document.getElementById('iteratorStatus').classList.remove('error');
+
+            try {
+                let count = 0;
+                while (iterator.hasNext()) {
+                    const value = iterator.next();
+                    addLog(`迭代读取: ${value}`, 'info');
+                    updateDisplay(iterator.cursor - 1, 'highlight-add');
+                    await sleep(600);
+
+                    count++;
+                    if (count === 1) {
+                        addLog('⚠️ 在迭代过程中修改列表...', 'error');
+                        await sleep(400);
+                        arrayList.add(999);
+                        addLog(`添加了元素 999，modCount 变为 ${arrayList.modCount}`, 'error');
+                        document.getElementById('currentModCount').textContent = arrayList.modCount;
+                        updateDisplay();
+                        await sleep(600);
+
+                        addLog('继续迭代，将检查 modCount...', 'info');
+                        await sleep(400);
+                    }
+                }
+            } catch (e) {
+                document.getElementById('iteratorStatus').textContent = `状态: ${e.message}`;
+                document.getElementById('iteratorStatus').classList.add('error');
+                addLog(`❌ 抛出异常: ${e.message}`, 'error');
+                addLog('原因: expectedModCount !== modCount', 'error');
+            }
+
+            addLog('=== 不安全迭代演示结束 ===', 'info');
+            updateDisplay();
+        }
+
+        // 重置迭代器状态
+        function resetIterator() {
+            document.getElementById('expectedModCount').textContent = '-';
+            document.getElementById('iteratorStatus').textContent = '状态: 未启动';
+            document.getElementById('iteratorStatus').classList.remove('error');
+            addLog('迭代器状态已重置', 'info');
+        }
+
+        // 标签页切换
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // 工具函数
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+
+            switch (e.key.toLowerCase()) {
+                case 'a': addRandom(); break;
+                case 'd': removeElement(); break;
+                case 'c': clearArray(); break;
+                case 'r': addRandom(); break;
+            }
+        });
+
+        // 初始化
+        updateDisplay();
+        addLog('ArrayList 可视化演示已就绪', 'info');
+        addLog('快捷键: A-添加, D-删除, C-清空', 'info');
+    </script>
+</body>
+</html>
