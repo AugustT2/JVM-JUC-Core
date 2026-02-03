@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreadPoolExecutor 源码可视化讲解</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #8892b0;
+            margin-bottom: 30px;
+        }
+
+        /* 导航标签 */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
+        }
+
+        /* 内容区域 */
+        .content-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h2 {
+            color: #00d2ff;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .card h3 {
+            color: #64ffda;
+            margin: 15px 0 10px;
+        }
+
+        /* 核心参数可视化 */
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .param-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            border-left: 4px solid #00d2ff;
+            transition: all 0.3s ease;
+        }
+
+        .param-card:hover {
+            transform: translateX(10px);
+            border-left-color: #64ffda;
+        }
+
+        .param-name {
+            font-family: 'Consolas', monospace;
+            color: #64ffda;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .param-type {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .param-desc {
+            color: #8892b0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* 线程池动画区域 */
+        .pool-container {
+            position: relative;
+            min-height: 500px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            overflow: hidden;
+        }
+
+        .pool-visual {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        /* 任务队列 */
+        .queue-section {
+            text-align: center;
+        }
+
+        .queue-label {
+            color: #ffd93d;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .task-queue {
+            width: 120px;
+            min-height: 300px;
+            background: rgba(255, 217, 61, 0.1);
+            border: 2px dashed #ffd93d;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .task {
+            width: 80px;
+            height: 40px;
+            background: linear-gradient(135deg, #ffd93d, #ff9f1c);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #1a1a2e;
+            font-weight: bold;
+            animation: taskPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes taskPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* 工作线程区域 */
+        .workers-section {
+            text-align: center;
+        }
+
+        .workers-label {
+            color: #64ffda;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .workers-area {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .worker {
+            width: 100px;
+            height: 120px;
+            background: rgba(100, 255, 218, 0.1);
+            border: 2px solid #64ffda;
+            border-radius: 15px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .worker.core {
+            border-color: #64ffda;
+        }
+
+        .worker.non-core {
+            border-color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .worker.idle {
+            opacity: 0.5;
+        }
+
+        .worker.busy {
+            animation: workerBusy 0.5s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(100, 255, 218, 0.5);
+        }
+
+        @keyframes workerBusy {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .worker-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #64ffda, #00d2ff);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .worker.non-core .worker-icon {
+            background: linear-gradient(135deg, #ff6b6b, #ff9f1c);
+        }
+
+        .worker-name {
+            font-size: 11px;
+            color: #8892b0;
+        }
+
+        .worker-status {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .worker-status.idle {
+            color: #8892b0;
+        }
+
+        .worker-status.running {
+            color: #64ffda;
+        }
+
+        /* 拒绝处理器 */
+        .reject-section {
+            text-align: center;
+        }
+
+        .reject-label {
+            color: #ff6b6b;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .reject-handler {
+            width: 120px;
+            height: 100px;
+            background: rgba(255, 107, 107, 0.1);
+            border: 2px solid #ff6b6b;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .reject-icon {
+            font-size: 30px;
+        }
+
+        .reject-name {
+            font-size: 11px;
+            color: #ff6b6b;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .control-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-submit {
+            background: linear-gradient(90deg, #ffd93d, #ff9f1c);
+            color: #1a1a2e;
+        }
+
+        .btn-execute {
+            background: linear-gradient(90deg, #64ffda, #00d2ff);
+            color: #1a1a2e;
+        }
+
+        .btn-reject {
+            background: linear-gradient(90deg, #ff6b6b, #ee5a5a);
+            color: #fff;
+        }
+
+        .btn-reset {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 状态显示 */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00d2ff;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #8892b0;
+        }
+
+        /* 流程图区域 */
+        .flowchart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .flow-box {
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: center;
+            min-width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        .flow-box.start {
+            background: linear-gradient(135deg, #64ffda, #00d2ff);
+            color: #1a1a2e;
+        }
+
+        .flow-box.decision {
+            background: linear-gradient(135deg, #ffd93d, #ff9f1c);
+            color: #1a1a2e;
+            transform: rotate(0deg);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            width: 180px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flow-box.action {
+            background: rgba(100, 255, 218, 0.2);
+            border: 2px solid #64ffda;
+            color: #fff;
+        }
+
+        .flow-box.reject {
+            background: rgba(255, 107, 107, 0.2);
+            border: 2px solid #ff6b6b;
+            color: #fff;
+        }
+
+        .flow-box.active {
+            animation: flowActive 0.5s ease-in-out infinite;
+            box-shadow: 0 0 30px rgba(100, 255, 218, 0.5);
+        }
+
+        @keyframes flowActive {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .flow-arrow {
+            font-size: 24px;
+            color: #00d2ff;
+        }
+
+        .flow-arrow.down {
+            transform: rotate(90deg);
+        }
+
+        .flow-branch {
+            display: flex;
+            gap: 50px;
+            align-items: flex-start;
+        }
+
+        .flow-branch-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .branch-label {
+            font-size: 12px;
+            color: #8892b0;
+            padding: 5px 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+        }
+
+        /* 代码展示 */
+        .code-block {
+            background: #0d1117;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+
+        .code-block .keyword {
+            color: #ff7b72;
+        }
+
+        .code-block .type {
+            color: #79c0ff;
+        }
+
+        .code-block .string {
+            color: #a5d6ff;
+        }
+
+        .code-block .number {
+            color: #ffd93d;
+        }
+
+        .code-block .comment {
+            color: #8b949e;
+        }
+
+        .code-block .method {
+            color: #d2a8ff;
+        }
+
+        .code-block .variable {
+            color: #ffa657;
+        }
+
+        /* 拒绝策略可视化 */
+        .policy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .policy-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .policy-card:hover {
+            border-color: #00d2ff;
+            transform: translateY(-5px);
+        }
+
+        .policy-card.abort { border-left: 4px solid #ff6b6b; }
+        .policy-card.caller { border-left: 4px solid #ffd93d; }
+        .policy-card.discard { border-left: 4px solid #8892b0; }
+        .policy-card.discard-oldest { border-left: 4px solid #ff9f1c; }
+
+        .policy-name {
+            font-family: 'Consolas', monospace;
+            color: #64ffda;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .policy-desc {
+            color: #8892b0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .policy-demo {
+            min-height: 80px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        /* Worker工作机制动画 */
+        .worker-mechanism {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+            padding: 40px;
+            flex-wrap: wrap;
+        }
+
+        .mechanism-box {
+            text-align: center;
+        }
+
+        .mechanism-title {
+            color: #64ffda;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .getTask-loop {
+            width: 200px;
+            height: 200px;
+            border: 3px dashed #00d2ff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: loopRotate 10s linear infinite;
+            position: relative;
+        }
+
+        @keyframes loopRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .getTask-inner {
+            animation: loopRotate 10s linear infinite reverse;
+            text-align: center;
+        }
+
+        .loop-label {
+            font-size: 14px;
+            color: #00d2ff;
+        }
+
+        .loop-method {
+            font-family: 'Consolas', monospace;
+            color: #64ffda;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        /* 线程复用原理 */
+        .reuse-timeline {
+            position: relative;
+            padding: 30px 0;
+        }
+
+        .timeline-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            position: relative;
+            margin: 40px 0;
+        }
+
+        .timeline-event {
+            position: absolute;
+            top: -15px;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .event-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #64ffda, #00d2ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .event-label {
+            font-size: 12px;
+            color: #8892b0;
+            text-align: center;
+            max-width: 100px;
+        }
+
+        /* 说明文字 */
+        .explanation {
+            background: rgba(100, 255, 218, 0.1);
+            border-left: 4px solid #64ffda;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .explanation p {
+            color: #ccd6f6;
+            line-height: 1.8;
+            font-size: 14px;
+        }
+
+        .highlight {
+            color: #64ffda;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ffd93d;
+        }
+
+        .danger {
+            color: #ff6b6b;
+        }
+
+        /* 动画任务流 */
+        .task-flow-animation {
+            position: relative;
+            height: 300px;
+            overflow: hidden;
+        }
+
+        .flying-task {
+            position: absolute;
+            width: 60px;
+            height: 35px;
+            background: linear-gradient(135deg, #ffd93d, #ff9f1c);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #1a1a2e;
+            font-weight: bold;
+            opacity: 0;
+        }
+
+        /* CTL状态展示 */
+        .ctl-display {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .ctl-title {
+            color: #00d2ff;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .ctl-bits {
+            display: flex;
+            gap: 2px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .bit {
+            width: 25px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+
+        .bit.state {
+            background: rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+        }
+
+        .bit.count {
+            background: rgba(100, 255, 218, 0.3);
+            color: #64ffda;
+        }
+
+        .ctl-legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #8892b0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .legend-color.state { background: rgba(255, 107, 107, 0.3); }
+        .legend-color.count { background: rgba(100, 255, 218, 0.3); }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .tabs { gap: 5px; }
+            .tab-btn { padding: 10px 15px; font-size: 12px; }
+            .pool-visual { gap: 20px; }
+            .worker { width: 80px; height: 100px; }
+        }
+
+        /* 面试重点标记 */
+        .interview-badge {
+            display: inline-block;
+            background: linear-gradient(90deg, #ff6b6b, #ee5a5a);
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            margin-left: 10px;
+            animation: badgePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes badgePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ThreadPoolExecutor 源码可视化</h1>
+        <p class="subtitle">深入理解Java线程池的底层原理与面试高频考点</p>
+
+        <!-- 导航标签 -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="params">核心参数</button>
+            <button class="tab-btn" data-tab="ctl">CTL状态控制</button>
+            <button class="tab-btn" data-tab="execute">Execute流程</button>
+            <button class="tab-btn" data-tab="worker">Worker机制</button>
+            <button class="tab-btn" data-tab="reject">拒绝策略</button>
+            <button class="tab-btn" data-tab="reuse">线程复用</button>
+            <button class="tab-btn" data-tab="interactive">交互演示</button>
+        </div>
+
+        <!-- 1. 核心参数 -->
+        <div id="params" class="content-section active">
+            <div class="card">
+                <h2>ThreadPoolExecutor 7大核心参数 <span class="interview-badge">面试必考</span></h2>
+
+                <div class="code-block">
+<span class="keyword">public</span> <span class="method">ThreadPoolExecutor</span>(
+    <span class="type">int</span> <span class="variable">corePoolSize</span>,          <span class="comment">// 核心线程数</span>
+    <span class="type">int</span> <span class="variable">maximumPoolSize</span>,       <span class="comment">// 最大线程数</span>
+    <span class="type">long</span> <span class="variable">keepAliveTime</span>,        <span class="comment">// 非核心线程存活时间</span>
+    <span class="type">TimeUnit</span> <span class="variable">unit</span>,              <span class="comment">// 时间单位</span>
+    <span class="type">BlockingQueue&lt;Runnable&gt;</span> <span class="variable">workQueue</span>,  <span class="comment">// 工作队列</span>
+    <span class="type">ThreadFactory</span> <span class="variable">threadFactory</span>,      <span class="comment">// 线程工厂</span>
+    <span class="type">RejectedExecutionHandler</span> <span class="variable">handler</span>  <span class="comment">// 拒绝策略</span>
+)
+                </div>
+
+                <div class="params-grid">
+                    <div class="param-card" id="param-core">
+                        <div class="param-name">corePoolSize</div>
+                        <div class="param-type">int</div>
+                        <div class="param-desc">核心线程数，即使空闲也不会被回收的线程数量。除非设置了 allowCoreThreadTimeOut(true)</div>
+                    </div>
+                    <div class="param-card" id="param-max">
+                        <div class="param-name">maximumPoolSize</div>
+                        <div class="param-type">int</div>
+                        <div class="param-desc">线程池允许的最大线程数，当队列满了才会创建超过核心数的线程</div>
+                    </div>
+                    <div class="param-card" id="param-keepalive">
+                        <div class="param-name">keepAliveTime</div>
+                        <div class="param-type">long</div>
+                        <div class="param-desc">非核心线程的空闲存活时间，超过这个时间空闲的非核心线程会被销毁</div>
+                    </div>
+                    <div class="param-card" id="param-unit">
+                        <div class="param-name">unit</div>
+                        <div class="param-type">TimeUnit</div>
+                        <div class="param-desc">keepAliveTime的时间单位，如SECONDS、MILLISECONDS等</div>
+                    </div>
+                    <div class="param-card" id="param-queue">
+                        <div class="param-name">workQueue</div>
+                        <div class="param-type">BlockingQueue&lt;Runnable&gt;</div>
+                        <div class="param-desc">任务等待队列，核心线程都忙时，新任务会进入队列等待</div>
+                    </div>
+                    <div class="param-card" id="param-factory">
+                        <div class="param-name">threadFactory</div>
+                        <div class="param-type">ThreadFactory</div>
+                        <div class="param-desc">创建线程的工厂，可以自定义线程名称、优先级等属性</div>
+                    </div>
+                    <div class="param-card" id="param-handler">
+                        <div class="param-name">handler</div>
+                        <div class="param-type">RejectedExecutionHandler</div>
+                        <div class="param-desc">拒绝策略，当队列满且线程数达到最大值时如何处理新任务</div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <p><span class="highlight">💡 记忆技巧：</span>可以想象成一个公司的招聘机制：</p>
+                    <p>• <span class="highlight">corePoolSize</span> = 正式员工数（永不裁员）</p>
+                    <p>• <span class="highlight">maximumPoolSize</span> = 公司最大容量（包含临时工）</p>
+                    <p>• <span class="highlight">workQueue</span> = 待办任务清单</p>
+                    <p>• <span class="highlight">keepAliveTime</span> = 临时工空闲多久被辞退</p>
+                    <p>• <span class="highlight">handler</span> = 任务太多处理不过来的应对方案</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. CTL状态控制 -->
+        <div id="ctl" class="content-section">
+            <div class="card">
+                <h2>CTL - 线程池状态控制字 <span class="interview-badge">源码核心</span></h2>
+
+                <div class="explanation">
+                    <p>ThreadPoolExecutor 使用一个 <span class="highlight">AtomicInteger</span> 类型的 <span class="highlight">ctl</span> 变量，巧妙地用一个32位整数同时存储了<span class="warning">线程池状态</span>和<span class="highlight">工作线程数量</span>两个信息。</p>
+                </div>
+
+                <div class="ctl-display">
+                    <div class="ctl-title">CTL 32位结构</div>
+                    <div class="ctl-bits" id="ctlBits">
+                        <!-- 高3位：状态 -->
+                        <div class="bit state">1</div>
+                        <div class="bit state">1</div>
+                        <div class="bit state">1</div>
+                        <!-- 低29位：线程数 -->
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">1</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">1</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                        <div class="bit count">0</div>
+                    </div>
+                    <div class="ctl-legend">
+                        <div class="legend-item">
+                            <div class="legend-color state"></div>
+                            <span>高3位：线程池状态 (runState)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color count"></div>
+                            <span>低29位：工作线程数 (workerCount)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="code-block">
+<span class="comment">// 源码中的位运算常量</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">COUNT_BITS</span> = Integer.SIZE - <span class="number">3</span>;  <span class="comment">// 29</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">COUNT_MASK</span> = (<span class="number">1</span> << COUNT_BITS) - <span class="number">1</span>;  <span class="comment">// 0x1FFFFFFF</span>
+
+<span class="comment">// 线程池5种状态</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">RUNNING</span>    = -<span class="number">1</span> << COUNT_BITS;  <span class="comment">// 111 能接收任务，能处理队列任务</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">SHUTDOWN</span>   =  <span class="number">0</span> << COUNT_BITS;  <span class="comment">// 000 不接收新任务，但处理队列任务</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">STOP</span>       =  <span class="number">1</span> << COUNT_BITS;  <span class="comment">// 001 不接收，不处理，中断进行中</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">TIDYING</span>    =  <span class="number">2</span> << COUNT_BITS;  <span class="comment">// 010 所有任务终止，workerCount=0</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">int</span> <span class="variable">TERMINATED</span> =  <span class="number">3</span> << COUNT_BITS;  <span class="comment">// 011 terminated()执行完成</span>
+
+<span class="comment">// 获取状态和线程数的方法</span>
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="method">runStateOf</span>(<span class="type">int</span> c)  { <span class="keyword">return</span> c & ~COUNT_MASK; }
+<span class="keyword">private</span> <span class="keyword">static</span> <span class="type">int</span> <span class="method">workerCountOf</span>(<span class="type">int</span> c) { <span class="keyword">return</span> c & COUNT_MASK; }
+                </div>
+
+                <h3>线程池状态转换图</h3>
+                <div class="flowchart">
+                    <div class="flow-step">
+                        <div class="flow-box start" style="min-width:150px;">RUNNING<br><small>正常运行</small></div>
+                    </div>
+                    <div class="flow-arrow down">→</div>
+                    <div class="flow-branch">
+                        <div class="flow-branch-item">
+                            <div class="branch-label">shutdown()</div>
+                            <div class="flow-box action">SHUTDOWN<br><small>不接收新任务</small></div>
+                        </div>
+                        <div class="flow-branch-item">
+                            <div class="branch-label">shutdownNow()</div>
+                            <div class="flow-box reject">STOP<br><small>中断所有任务</small></div>
+                        </div>
+                    </div>
+                    <div class="flow-arrow down">↓</div>
+                    <div class="flow-step">
+                        <div class="flow-box action">TIDYING<br><small>workerCount=0</small></div>
+                    </div>
+                    <div class="flow-arrow down">↓</div>
+                    <div class="flow-step">
+                        <div class="flow-box start" style="background: linear-gradient(135deg, #8892b0, #64748b);">TERMINATED<br><small>彻底终止</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Execute流程 -->
+        <div id="execute" class="content-section">
+            <div class="card">
+                <h2>execute() 执行流程 <span class="interview-badge">最高频考点</span></h2>
+
+                <div class="code-block">
+<span class="keyword">public</span> <span class="type">void</span> <span class="method">execute</span>(<span class="type">Runnable</span> command) {
+    <span class="keyword">if</span> (command == <span class="keyword">null</span>) <span class="keyword">throw new</span> NullPointerException();
+
+    <span class="type">int</span> c = ctl.get();
+
+    <span class="comment">// Step 1: 如果工作线程数 < 核心线程数，创建核心线程</span>
+    <span class="keyword">if</span> (<span class="method">workerCountOf</span>(c) < corePoolSize) {
+        <span class="keyword">if</span> (<span class="method">addWorker</span>(command, <span class="keyword">true</span>)) <span class="keyword">return</span>;
+        c = ctl.get();
+    }
+
+    <span class="comment">// Step 2: 核心线程已满，尝试加入队列</span>
+    <span class="keyword">if</span> (<span class="method">isRunning</span>(c) && workQueue.<span class="method">offer</span>(command)) {
+        <span class="type">int</span> recheck = ctl.get();
+        <span class="comment">// 双重检查：如果线程池不在运行状态，移除任务并拒绝</span>
+        <span class="keyword">if</span> (!<span class="method">isRunning</span>(recheck) && <span class="method">remove</span>(command))
+            <span class="method">reject</span>(command);
+        <span class="comment">// 如果没有工作线程了，创建一个非核心线程</span>
+        <span class="keyword">else if</span> (<span class="method">workerCountOf</span>(recheck) == <span class="number">0</span>)
+            <span class="method">addWorker</span>(<span class="keyword">null</span>, <span class="keyword">false</span>);
+    }
+    <span class="comment">// Step 3: 队列也满了，尝试创建非核心线程</span>
+    <span class="keyword">else if</span> (!<span class="method">addWorker</span>(command, <span class="keyword">false</span>))
+        <span class="comment">// Step 4: 都失败了，执行拒绝策略</span>
+        <span class="method">reject</span>(command);
+}
+                </div>
+
+                <h3>执行流程可视化</h3>
+                <div class="flowchart" id="executeFlowchart">
+                    <div class="flow-step">
+                        <div class="flow-box start" id="flow-start">execute(task) 提交任务</div>
+                    </div>
+                    <div class="flow-arrow down">↓</div>
+                    <div class="flow-step">
+                        <div class="flow-box decision" id="flow-check1">
+                            <span>workerCount<br>&lt; corePoolSize?</span>
+                        </div>
+                    </div>
+                    <div class="flow-branch">
+                        <div class="flow-branch-item">
+                            <div class="branch-label">Yes ✓</div>
+                            <div class="flow-box action" id="flow-core">创建核心线程<br>执行任务</div>
+                        </div>
+                        <div class="flow-branch-item">
+                            <div class="branch-label">No ✗</div>
+                            <div class="flow-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="flow-arrow down">↓</div>
+                    <div class="flow-step">
+                        <div class="flow-box decision" id="flow-check2">
+                            <span>队列未满?<br>offer成功?</span>
+                        </div>
+                    </div>
+                    <div class="flow-branch">
+                        <div class="flow-branch-item">
+                            <div class="branch-label">Yes ✓</div>
+                            <div class="flow-box action" id="flow-queue">任务入队等待<br>被Worker取走执行</div>
+                        </div>
+                        <div class="flow-branch-item">
+                            <div class="branch-label">No ✗</div>
+                            <div class="flow-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="flow-arrow down">↓</div>
+                    <div class="flow-step">
+                        <div class="flow-box decision" id="flow-check3">
+                            <span>workerCount<br>&lt; maxPoolSize?</span>
+                        </div>
+                    </div>
+                    <div class="flow-branch">
+                        <div class="flow-branch-item">
+                            <div class="branch-label">Yes ✓</div>
+                            <div class="flow-box action" id="flow-noncore">创建非核心线程<br>执行任务</div>
+                        </div>
+                        <div class="flow-branch-item">
+                            <div class="branch-label">No ✗</div>
+                            <div class="flow-box reject" id="flow-reject">执行拒绝策略<br>RejectedExecutionHandler</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <p><span class="highlight">🎯 面试重点总结：</span></p>
+                    <p>1. 先尝试创建<span class="highlight">核心线程</span>直接执行任务</p>
+                    <p>2. 核心满了，任务进入<span class="warning">等待队列</span></p>
+                    <p>3. 队列也满了，创建<span class="danger">非核心线程</span>执行</p>
+                    <p>4. 都满了，执行<span class="danger">拒绝策略</span></p>
+                    <p style="margin-top:10px;"><span class="warning">⚠️ 注意：</span>不是先填满线程再入队，而是先入队再创建非核心线程！</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Worker工作机制 -->
+        <div id="worker" class="content-section">
+            <div class="card">
+                <h2>Worker 工作机制 <span class="interview-badge">核心原理</span></h2>
+
+                <div class="explanation">
+                    <p>Worker 是 ThreadPoolExecutor 的内部类，它实现了 <span class="highlight">Runnable</span> 接口，同时继承了 <span class="highlight">AbstractQueuedSynchronizer (AQS)</span>。每个 Worker 封装了一个线程和初始任务。</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">private final class</span> <span class="type">Worker</span>
+    <span class="keyword">extends</span> <span class="type">AbstractQueuedSynchronizer</span>
+    <span class="keyword">implements</span> <span class="type">Runnable</span> {
+
+    <span class="keyword">final</span> <span class="type">Thread</span> thread;      <span class="comment">// Worker持有的线程</span>
+    <span class="type">Runnable</span> firstTask;       <span class="comment">// 初始任务，可能为null</span>
+    <span class="keyword">volatile long</span> completedTasks; <span class="comment">// 完成的任务数</span>
+
+    <span class="method">Worker</span>(<span class="type">Runnable</span> firstTask) {
+        <span class="method">setState</span>(-<span class="number">1</span>); <span class="comment">// 禁止中断直到runWorker</span>
+        <span class="keyword">this</span>.firstTask = firstTask;
+        <span class="comment">// 用ThreadFactory创建线程，传入Worker自身作为Runnable</span>
+        <span class="keyword">this</span>.thread = <span class="method">getThreadFactory</span>().<span class="method">newThread</span>(<span class="keyword">this</span>);
+    }
+
+    <span class="keyword">public void</span> <span class="method">run</span>() {
+        <span class="method">runWorker</span>(<span class="keyword">this</span>); <span class="comment">// 核心执行方法</span>
+    }
+}
+                </div>
+
+                <h3>runWorker() - Worker的核心工作循环</h3>
+                <div class="code-block">
+<span class="keyword">final void</span> <span class="method">runWorker</span>(<span class="type">Worker</span> w) {
+    <span class="type">Thread</span> wt = Thread.<span class="method">currentThread</span>();
+    <span class="type">Runnable</span> task = w.firstTask;
+    w.firstTask = <span class="keyword">null</span>;
+    w.<span class="method">unlock</span>(); <span class="comment">// 允许中断</span>
+    <span class="type">boolean</span> completedAbruptly = <span class="keyword">true</span>;
+
+    <span class="keyword">try</span> {
+        <span class="comment">// 🔄 核心循环：有初始任务就执行，没有就从队列取</span>
+        <span class="keyword">while</span> (task != <span class="keyword">null</span> || (task = <span class="method">getTask</span>()) != <span class="keyword">null</span>) {
+            w.<span class="method">lock</span>(); <span class="comment">// 获取Worker锁</span>
+            <span class="comment">// 检查线程池状态，必要时中断</span>
+            <span class="keyword">if</span> ((<span class="method">runStateAtLeast</span>(ctl.get(), STOP) ||
+                 (Thread.<span class="method">interrupted</span>() && <span class="method">runStateAtLeast</span>(ctl.get(), STOP)))
+                && !wt.<span class="method">isInterrupted</span>())
+                wt.<span class="method">interrupt</span>();
+
+            <span class="keyword">try</span> {
+                <span class="method">beforeExecute</span>(wt, task); <span class="comment">// 钩子方法</span>
+                <span class="keyword">try</span> {
+                    task.<span class="method">run</span>(); <span class="comment">// 🎯 执行任务！</span>
+                    <span class="method">afterExecute</span>(task, <span class="keyword">null</span>); <span class="comment">// 钩子方法</span>
+                } <span class="keyword">catch</span> (<span class="type">Throwable</span> ex) {
+                    <span class="method">afterExecute</span>(task, ex);
+                    <span class="keyword">throw</span> ex;
+                }
+            } <span class="keyword">finally</span> {
+                task = <span class="keyword">null</span>;
+                w.completedTasks++;
+                w.<span class="method">unlock</span>();
+            }
+        }
+        completedAbruptly = <span class="keyword">false</span>;
+    } <span class="keyword">finally</span> {
+        <span class="method">processWorkerExit</span>(w, completedAbruptly);
+    }
+}
+                </div>
+
+                <h3>Worker工作机制可视化</h3>
+                <div class="worker-mechanism">
+                    <div class="mechanism-box">
+                        <div class="mechanism-title">Worker工作循环</div>
+                        <div class="getTask-loop">
+                            <div class="getTask-inner">
+                                <div class="loop-label">循环获取任务</div>
+                                <div class="loop-method">while(getTask())</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mechanism-box" style="max-width: 300px;">
+                        <div class="mechanism-title">Worker生命周期</div>
+                        <div style="display:flex;flex-direction:column;gap:15px;align-items:center;">
+                            <div class="flow-box action" style="padding:10px 20px;">创建 Worker</div>
+                            <div class="flow-arrow down">↓</div>
+                            <div class="flow-box action" style="padding:10px 20px;">执行 firstTask</div>
+                            <div class="flow-arrow down">↓</div>
+                            <div class="flow-box start" style="padding:10px 20px;">循环 getTask()</div>
+                            <div class="flow-arrow down">↓</div>
+                            <div class="flow-box reject" style="padding:10px 20px;background:rgba(136,146,176,0.2);border-color:#8892b0;">Worker退出</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <p><span class="highlight">🔑 关键点：</span></p>
+                    <p>1. Worker继承AQS实现<span class="highlight">不可重入的独占锁</span>，用于判断线程是否空闲</p>
+                    <p>2. <span class="highlight">firstTask</span>可以为null，此时Worker创建后直接从队列获取任务</p>
+                    <p>3. <span class="warning">getTask()</span>返回null时，Worker会退出循环并终止</p>
+                    <p>4. beforeExecute/afterExecute是<span class="highlight">钩子方法</span>，可以扩展自定义逻辑</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 拒绝策略 -->
+        <div id="reject" class="content-section">
+            <div class="card">
+                <h2>四种拒绝策略 <span class="interview-badge">面试必考</span></h2>
+
+                <div class="explanation">
+                    <p>当<span class="danger">线程数达到maximumPoolSize</span>且<span class="danger">队列已满</span>时，新提交的任务将被拒绝，此时会调用 RejectedExecutionHandler 的 rejectedExecution 方法。</p>
+                </div>
+
+                <div class="policy-grid">
+                    <div class="policy-card abort" onclick="demoPolicy('abort')">
+                        <div class="policy-name">AbortPolicy（默认）</div>
+                        <div class="param-type">直接抛出异常</div>
+                        <div class="policy-desc">抛出 RejectedExecutionException 异常，让调用者感知任务被拒绝，由调用者决定如何处理。</div>
+                        <div class="policy-demo" id="demo-abort">
+                            <span style="color:#ff6b6b;">💥 throw RejectedExecutionException</span>
+                        </div>
+                    </div>
+
+                    <div class="policy-card caller" onclick="demoPolicy('caller')">
+                        <div class="policy-name">CallerRunsPolicy</div>
+                        <div class="param-type">调用者线程执行</div>
+                        <div class="policy-desc">由提交任务的线程（调用execute的线程）自己执行该任务，实现简单的反压机制。</div>
+                        <div class="policy-demo" id="demo-caller">
+                            <span style="color:#ffd93d;">🔄 main线程自己执行任务</span>
+                        </div>
+                    </div>
+
+                    <div class="policy-card discard" onclick="demoPolicy('discard')">
+                        <div class="policy-name">DiscardPolicy</div>
+                        <div class="param-type">静默丢弃</div>
+                        <div class="policy-desc">直接丢弃任务，不做任何处理也不抛异常。适用于可以接受任务丢失的场景。</div>
+                        <div class="policy-demo" id="demo-discard">
+                            <span style="color:#8892b0;">🗑️ 任务被静默丢弃...</span>
+                        </div>
+                    </div>
+
+                    <div class="policy-card discard-oldest" onclick="demoPolicy('oldest')">
+                        <div class="policy-name">DiscardOldestPolicy</div>
+                        <div class="param-type">丢弃队头任务</div>
+                        <div class="policy-desc">丢弃队列中等待最久的任务（队头），然后尝试重新提交当前任务。</div>
+                        <div class="policy-demo" id="demo-oldest">
+                            <span style="color:#ff9f1c;">🔄 poll() 再 execute()</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h3>拒绝策略源码</h3>
+                <div class="code-block">
+<span class="comment">// 1. AbortPolicy - 默认策略</span>
+<span class="keyword">public static class</span> <span class="type">AbortPolicy</span> <span class="keyword">implements</span> <span class="type">RejectedExecutionHandler</span> {
+    <span class="keyword">public void</span> <span class="method">rejectedExecution</span>(<span class="type">Runnable</span> r, <span class="type">ThreadPoolExecutor</span> e) {
+        <span class="keyword">throw new</span> <span class="type">RejectedExecutionException</span>(<span class="string">"Task rejected"</span>);
+    }
+}
+
+<span class="comment">// 2. CallerRunsPolicy - 调用者执行</span>
+<span class="keyword">public static class</span> <span class="type">CallerRunsPolicy</span> <span class="keyword">implements</span> <span class="type">RejectedExecutionHandler</span> {
+    <span class="keyword">public void</span> <span class="method">rejectedExecution</span>(<span class="type">Runnable</span> r, <span class="type">ThreadPoolExecutor</span> e) {
+        <span class="keyword">if</span> (!e.<span class="method">isShutdown</span>()) {
+            r.<span class="method">run</span>(); <span class="comment">// 直接在调用者线程执行</span>
+        }
+    }
+}
+
+<span class="comment">// 3. DiscardPolicy - 静默丢弃</span>
+<span class="keyword">public static class</span> <span class="type">DiscardPolicy</span> <span class="keyword">implements</span> <span class="type">RejectedExecutionHandler</span> {
+    <span class="keyword">public void</span> <span class="method">rejectedExecution</span>(<span class="type">Runnable</span> r, <span class="type">ThreadPoolExecutor</span> e) {
+        <span class="comment">// 什么都不做，直接丢弃</span>
+    }
+}
+
+<span class="comment">// 4. DiscardOldestPolicy - 丢弃最旧任务</span>
+<span class="keyword">public static class</span> <span class="type">DiscardOldestPolicy</span> <span class="keyword">implements</span> <span class="type">RejectedExecutionHandler</span> {
+    <span class="keyword">public void</span> <span class="method">rejectedExecution</span>(<span class="type">Runnable</span> r, <span class="type">ThreadPoolExecutor</span> e) {
+        <span class="keyword">if</span> (!e.<span class="method">isShutdown</span>()) {
+            e.<span class="method">getQueue</span>().<span class="method">poll</span>(); <span class="comment">// 移除队头</span>
+            e.<span class="method">execute</span>(r); <span class="comment">// 重新提交</span>
+        }
+    }
+}
+                </div>
+
+                <div class="explanation">
+                    <p><span class="highlight">💡 选择建议：</span></p>
+                    <p>• <span class="danger">AbortPolicy</span>：要求任务不能丢失，需要上层处理异常</p>
+                    <p>• <span class="warning">CallerRunsPolicy</span>：希望任务都执行，可接受调用者线程被阻塞</p>
+                    <p>• <span class="highlight">DiscardPolicy</span>：任务可丢弃，如日志采集等非关键任务</p>
+                    <p>• <span class="warning">DiscardOldestPolicy</span>：新任务优先级更高的场景</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. 线程复用原理 -->
+        <div id="reuse" class="content-section">
+            <div class="card">
+                <h2>线程复用原理 <span class="interview-badge">核心考点</span></h2>
+
+                <div class="explanation">
+                    <p>线程池的核心优势就是<span class="highlight">线程复用</span>，避免频繁创建/销毁线程带来的开销。关键在于 <span class="highlight">getTask()</span> 方法的阻塞等待机制。</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">private</span> <span class="type">Runnable</span> <span class="method">getTask</span>() {
+    <span class="type">boolean</span> timedOut = <span class="keyword">false</span>;
+
+    <span class="keyword">for</span> (;;) { <span class="comment">// 无限循环</span>
+        <span class="type">int</span> c = ctl.get();
+        <span class="type">int</span> rs = <span class="method">runStateOf</span>(c);
+
+        <span class="comment">// 检查线程池状态，决定是否退出</span>
+        <span class="keyword">if</span> (rs >= SHUTDOWN && (rs >= STOP || workQueue.<span class="method">isEmpty</span>())) {
+            <span class="method">decrementWorkerCount</span>();
+            <span class="keyword">return null</span>; <span class="comment">// 返回null，Worker将退出</span>
+        }
+
+        <span class="type">int</span> wc = <span class="method">workerCountOf</span>(c);
+
+        <span class="comment">// 🔑 关键：是否需要超时控制</span>
+        <span class="type">boolean</span> timed = allowCoreThreadTimeOut || wc > corePoolSize;
+
+        <span class="keyword">if</span> ((wc > maximumPoolSize || (timed && timedOut))
+            && (wc > <span class="number">1</span> || workQueue.<span class="method">isEmpty</span>())) {
+            <span class="keyword">if</span> (<span class="method">compareAndDecrementWorkerCount</span>(c))
+                <span class="keyword">return null</span>; <span class="comment">// 超时了，回收线程</span>
+            <span class="keyword">continue</span>;
+        }
+
+        <span class="keyword">try</span> {
+            <span class="comment">// 🎯 线程复用的核心！</span>
+            <span class="type">Runnable</span> r = timed ?
+                workQueue.<span class="method">poll</span>(keepAliveTime, TimeUnit.NANOSECONDS) : <span class="comment">// 超时等待</span>
+                workQueue.<span class="method">take</span>(); <span class="comment">// 无限等待（核心线程）</span>
+            <span class="keyword">if</span> (r != <span class="keyword">null</span>)
+                <span class="keyword">return</span> r;
+            timedOut = <span class="keyword">true</span>;
+        } <span class="keyword">catch</span> (<span class="type">InterruptedException</span> retry) {
+            timedOut = <span class="keyword">false</span>;
+        }
+    }
+}
+                </div>
+
+                <h3>线程复用时序图</h3>
+                <div class="reuse-timeline">
+                    <div style="text-align:center;margin-bottom:30px;">
+                        <span style="color:#64ffda;font-size:18px;">Worker线程生命周期中的任务处理</span>
+                    </div>
+                    <div class="timeline-track">
+                        <div class="timeline-event" style="left:5%;">
+                            <div class="event-dot">1</div>
+                            <div class="event-label">Worker创建<br>执行firstTask</div>
+                        </div>
+                        <div class="timeline-event" style="left:25%;">
+                            <div class="event-dot">2</div>
+                            <div class="event-label">firstTask完成<br>调用getTask()</div>
+                        </div>
+                        <div class="timeline-event" style="left:45%;">
+                            <div class="event-dot">3</div>
+                            <div class="event-label">队列阻塞等待<br>take()/poll()</div>
+                        </div>
+                        <div class="timeline-event" style="left:65%;">
+                            <div class="event-dot">4</div>
+                            <div class="event-label">获取新任务<br>继续执行</div>
+                        </div>
+                        <div class="timeline-event" style="left:85%;">
+                            <div class="event-dot">5</div>
+                            <div class="event-label">循环往复<br>直到退出</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <p><span class="highlight">🔑 线程复用的核心原理：</span></p>
+                    <p>1. Worker线程不会在任务执行完后就销毁</p>
+                    <p>2. 它会通过 <span class="highlight">getTask()</span> 方法<span class="warning">阻塞等待</span>新任务</p>
+                    <p>3. 核心线程调用 <span class="highlight">workQueue.take()</span> <span class="warning">无限等待</span></p>
+                    <p>4. 非核心线程调用 <span class="highlight">workQueue.poll(keepAliveTime)</span> <span class="warning">超时等待</span></p>
+                    <p>5. 超时后poll返回null，getTask返回null，Worker退出循环被回收</p>
+                </div>
+
+                <h3>核心线程 vs 非核心线程</h3>
+                <div style="display:flex;gap:30px;flex-wrap:wrap;justify-content:center;margin-top:20px;">
+                    <div style="flex:1;min-width:280px;background:rgba(100,255,218,0.1);border:2px solid #64ffda;border-radius:15px;padding:20px;">
+                        <h4 style="color:#64ffda;margin-bottom:15px;">核心线程</h4>
+                        <ul style="color:#8892b0;line-height:2;">
+                            <li>调用 <span style="color:#64ffda;">take()</span> 无限等待</li>
+                            <li>永远不会因超时被回收</li>
+                            <li>除非设置 allowCoreThreadTimeOut</li>
+                        </ul>
+                    </div>
+                    <div style="flex:1;min-width:280px;background:rgba(255,107,107,0.1);border:2px solid #ff6b6b;border-radius:15px;padding:20px;">
+                        <h4 style="color:#ff6b6b;margin-bottom:15px;">非核心线程</h4>
+                        <ul style="color:#8892b0;line-height:2;">
+                            <li>调用 <span style="color:#ff6b6b;">poll(keepAliveTime)</span></li>
+                            <li>超时后返回null被回收</li>
+                            <li>用于处理突发流量</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. 交互演示 -->
+        <div id="interactive" class="content-section">
+            <div class="card">
+                <h2>交互式线程池演示</h2>
+
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-core">0</div>
+                        <div class="stat-label">核心线程</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-noncore" style="color:#ff6b6b;">0</div>
+                        <div class="stat-label">非核心线程</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-queue" style="color:#ffd93d;">0</div>
+                        <div class="stat-label">队列任务</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-completed" style="color:#64ffda;">0</div>
+                        <div class="stat-label">已完成</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-rejected" style="color:#ff6b6b;">0</div>
+                        <div class="stat-label">已拒绝</div>
+                    </div>
+                </div>
+
+                <div class="pool-container">
+                    <div class="pool-visual">
+                        <!-- 任务队列 -->
+                        <div class="queue-section">
+                            <div class="queue-label">📋 任务队列 (容量: 3)</div>
+                            <div class="task-queue" id="taskQueue">
+                                <!-- 任务会动态添加 -->
+                            </div>
+                        </div>
+
+                        <!-- 工作线程 -->
+                        <div class="workers-section">
+                            <div class="workers-label">👷 工作线程 (core=2, max=4)</div>
+                            <div class="workers-area" id="workersArea">
+                                <!-- Worker会动态添加 -->
+                            </div>
+                        </div>
+
+                        <!-- 拒绝处理 -->
+                        <div class="reject-section">
+                            <div class="reject-label">🚫 拒绝处理</div>
+                            <div class="reject-handler" id="rejectHandler">
+                                <div class="reject-icon">⛔</div>
+                                <div class="reject-name">AbortPolicy</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="control-panel">
+                        <button class="control-btn btn-submit" onclick="submitTask()">📝 提交任务</button>
+                        <button class="control-btn btn-submit" onclick="submitBatchTasks(5)">📦 批量提交(5个)</button>
+                        <button class="control-btn btn-execute" onclick="executeOne()">▶️ 执行一个</button>
+                        <button class="control-btn btn-reset" onclick="resetPool()">🔄 重置</button>
+                    </div>
+                </div>
+
+                <div class="explanation" style="margin-top:20px;">
+                    <p><span class="highlight">🎮 操作说明：</span></p>
+                    <p>• <span class="warning">提交任务</span>：模拟调用 execute() 提交新任务</p>
+                    <p>• <span class="warning">批量提交</span>：一次性提交5个任务，观察线程池行为</p>
+                    <p>• <span class="highlight">执行一个</span>：让一个Worker完成当前任务</p>
+                    <p>• 参数配置：<span class="highlight">corePoolSize=2</span>, <span class="danger">maximumPoolSize=4</span>, <span class="warning">queueCapacity=3</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 线程池状态
+        const poolState = {
+            corePoolSize: 2,
+            maxPoolSize: 4,
+            queueCapacity: 3,
+            coreWorkers: [],
+            nonCoreWorkers: [],
+            queue: [],
+            taskId: 0,
+            completed: 0,
+            rejected: 0
+        };
+
+        // Tab切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // 更新统计
+        function updateStats() {
+            document.getElementById('stat-core').textContent = poolState.coreWorkers.filter(w => w.busy).length + '/' + poolState.corePoolSize;
+            document.getElementById('stat-noncore').textContent = poolState.nonCoreWorkers.length;
+            document.getElementById('stat-queue').textContent = poolState.queue.length + '/' + poolState.queueCapacity;
+            document.getElementById('stat-completed').textContent = poolState.completed;
+            document.getElementById('stat-rejected').textContent = poolState.rejected;
+        }
+
+        // 渲染Worker
+        function renderWorkers() {
+            const area = document.getElementById('workersArea');
+            area.innerHTML = '';
+
+            // 核心线程
+            poolState.coreWorkers.forEach((worker, i) => {
+                const div = document.createElement('div');
+                div.className = `worker core ${worker.busy ? 'busy' : 'idle'}`;
+                div.innerHTML = `
+                    <div class="worker-icon">⚙️</div>
+                    <div class="worker-name">Core-${i + 1}</div>
+                    <div class="worker-status ${worker.busy ? 'running' : 'idle'}">
+                        ${worker.busy ? '执行中' : '空闲'}
+                    </div>
+                    ${worker.task ? `<div style="font-size:10px;color:#ffd93d;">Task-${worker.task}</div>` : ''}
+                `;
+                area.appendChild(div);
+            });
+
+            // 非核心线程
+            poolState.nonCoreWorkers.forEach((worker, i) => {
+                const div = document.createElement('div');
+                div.className = `worker non-core ${worker.busy ? 'busy' : 'idle'}`;
+                div.innerHTML = `
+                    <div class="worker-icon">⚡</div>
+                    <div class="worker-name">Extra-${i + 1}</div>
+                    <div class="worker-status ${worker.busy ? 'running' : 'idle'}">
+                        ${worker.busy ? '执行中' : '待回收'}
+                    </div>
+                    ${worker.task ? `<div style="font-size:10px;color:#ffd93d;">Task-${worker.task}</div>` : ''}
+                `;
+                area.appendChild(div);
+            });
+        }
+
+        // 渲染队列
+        function renderQueue() {
+            const queue = document.getElementById('taskQueue');
+            queue.innerHTML = '';
+            poolState.queue.forEach(taskId => {
+                const div = document.createElement('div');
+                div.className = 'task';
+                div.textContent = `Task-${taskId}`;
+                queue.appendChild(div);
+            });
+        }
+
+        // 提交任务
+        function submitTask() {
+            poolState.taskId++;
+            const taskId = poolState.taskId;
+
+            // Step 1: 检查核心线程
+            const idleCore = poolState.coreWorkers.find(w => !w.busy);
+            if (idleCore) {
+                idleCore.busy = true;
+                idleCore.task = taskId;
+                showMessage(`✅ Task-${taskId} 分配给核心线程执行`, 'success');
+            }
+            // 创建新核心线程
+            else if (poolState.coreWorkers.length < poolState.corePoolSize) {
+                poolState.coreWorkers.push({ busy: true, task: taskId });
+                showMessage(`✅ 创建核心线程执行 Task-${taskId}`, 'success');
+            }
+            // Step 2: 加入队列
+            else if (poolState.queue.length < poolState.queueCapacity) {
+                poolState.queue.push(taskId);
+                showMessage(`📋 Task-${taskId} 加入等待队列`, 'warning');
+            }
+            // Step 3: 创建非核心线程
+            else if (poolState.coreWorkers.length + poolState.nonCoreWorkers.length < poolState.maxPoolSize) {
+                poolState.nonCoreWorkers.push({ busy: true, task: taskId });
+                showMessage(`⚡ 创建非核心线程执行 Task-${taskId}`, 'warning');
+            }
+            // Step 4: 拒绝
+            else {
+                poolState.rejected++;
+                showMessage(`🚫 Task-${taskId} 被拒绝！触发拒绝策略`, 'error');
+                highlightReject();
+            }
+
+            renderWorkers();
+            renderQueue();
+            updateStats();
+        }
+
+        // 批量提交
+        function submitBatchTasks(count) {
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => submitTask(), i * 300);
+            }
+        }
+
+        // 执行一个任务
+        function executeOne() {
+            // 找到忙碌的Worker
+            let worker = poolState.coreWorkers.find(w => w.busy) ||
+                         poolState.nonCoreWorkers.find(w => w.busy);
+
+            if (worker) {
+                const completedTask = worker.task;
+                poolState.completed++;
+
+                // 从队列获取新任务
+                if (poolState.queue.length > 0) {
+                    worker.task = poolState.queue.shift();
+                    showMessage(`✅ Task-${completedTask} 完成，Worker获取 Task-${worker.task}`, 'success');
+                } else {
+                    worker.busy = false;
+                    worker.task = null;
+                    showMessage(`✅ Task-${completedTask} 完成，Worker进入空闲`, 'success');
+
+                    // 非核心线程空闲后回收
+                    if (poolState.nonCoreWorkers.includes(worker)) {
+                        setTimeout(() => {
+                            if (!worker.busy) {
+                                poolState.nonCoreWorkers = poolState.nonCoreWorkers.filter(w => w !== worker);
+                                showMessage(`♻️ 非核心线程因空闲被回收`, 'warning');
+                                renderWorkers();
+                                updateStats();
+                            }
+                        }, 2000);
+                    }
+                }
+
+                renderWorkers();
+                renderQueue();
+                updateStats();
+            } else {
+                showMessage('没有正在执行的任务', 'info');
+            }
+        }
+
+        // 重置
+        function resetPool() {
+            poolState.coreWorkers = [];
+            poolState.nonCoreWorkers = [];
+            poolState.queue = [];
+            poolState.taskId = 0;
+            poolState.completed = 0;
+            poolState.rejected = 0;
+            renderWorkers();
+            renderQueue();
+            updateStats();
+            showMessage('🔄 线程池已重置', 'info');
+        }
+
+        // 显示消息
+        function showMessage(msg, type) {
+            const colors = {
+                success: '#64ffda',
+                warning: '#ffd93d',
+                error: '#ff6b6b',
+                info: '#00d2ff'
+            };
+            console.log(`%c${msg}`, `color: ${colors[type]}`);
+        }
+
+        // 高亮拒绝处理器
+        function highlightReject() {
+            const handler = document.getElementById('rejectHandler');
+            handler.style.animation = 'workerBusy 0.3s ease-in-out 3';
+            handler.style.boxShadow = '0 0 30px rgba(255, 107, 107, 0.8)';
+            setTimeout(() => {
+                handler.style.animation = '';
+                handler.style.boxShadow = '';
+            }, 1000);
+        }
+
+        // 拒绝策略演示
+        function demoPolicy(policy) {
+            const demos = {
+                abort: '💥 throw new RejectedExecutionException()',
+                caller: '🔄 r.run() 在main线程中执行',
+                discard: '🗑️ // 什么都不做',
+                oldest: '🔄 queue.poll(); execute(r);'
+            };
+            alert(demos[policy]);
+        }
+
+        // 参数卡片悬停动画
+        document.querySelectorAll('.param-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.background = 'rgba(100, 255, 218, 0.1)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.background = 'rgba(0, 0, 0, 0.3)';
+            });
+        });
+
+        // 初始化
+        updateStats();
+    </script>
+</body>
+</html>
