@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AQS 源码可视化讲解</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        /* 导航标签 */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .nav-tab {
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid transparent;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            color: #ccc;
+        }
+
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        .nav-tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: #fff;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* 内容区域 */
+        .content-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 动画画布 */
+        .animation-canvas {
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            min-height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00b4db, #0083b0);
+            color: #fff;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f, #a8e063);
+            color: #fff;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: #fff;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* 说明面板 */
+        .info-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-panel h3 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .info-panel p {
+            line-height: 1.8;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+
+        .info-panel code {
+            background: rgba(102, 126, 234, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            color: #00d4ff;
+        }
+
+        /* CLH队列节点 */
+        .clh-node {
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(145deg, #2d3436, #636e72);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 2px solid transparent;
+        }
+
+        .clh-node.head {
+            background: linear-gradient(145deg, #e74c3c, #c0392b);
+            border-color: #fff;
+        }
+
+        .clh-node.waiting {
+            background: linear-gradient(145deg, #f39c12, #e67e22);
+        }
+
+        .clh-node.acquired {
+            background: linear-gradient(145deg, #27ae60, #2ecc71);
+            border-color: #fff;
+            animation: pulse 1s infinite;
+        }
+
+        .clh-node.shared {
+            background: linear-gradient(145deg, #9b59b6, #8e44ad);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .node-thread {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .node-status {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        .node-waitStatus {
+            font-size: 0.7rem;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-top: 5px;
+        }
+
+        /* 箭头连接 */
+        .arrow {
+            position: absolute;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transform-origin: left center;
+            transition: all 0.5s ease;
+        }
+
+        .arrow::after {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: -5px;
+            border: 6px solid transparent;
+            border-left-color: #764ba2;
+        }
+
+        /* State 显示 */
+        .state-display {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: linear-gradient(145deg, #2d3436, #636e72);
+            padding: 20px 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #667eea;
+        }
+
+        .state-label {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .state-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+            transition: all 0.3s ease;
+        }
+
+        .state-value.changing {
+            animation: stateChange 0.5s ease;
+        }
+
+        @keyframes stateChange {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #f39c12; }
+        }
+
+        /* 日志面板 */
+        .log-panel {
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            animation: logIn 0.3s ease;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        @keyframes logIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-time {
+            color: #667eea;
+            margin-right: 10px;
+        }
+
+        .log-action {
+            color: #00d4ff;
+        }
+
+        .log-success {
+            color: #2ecc71;
+        }
+
+        .log-fail {
+            color: #e74c3c;
+        }
+
+        /* Condition 队列样式 */
+        .condition-queue {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .condition-label {
+            background: rgba(155, 89, 182, 0.3);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #9b59b6;
+            font-weight: bold;
+        }
+
+        .condition-node {
+            width: 100px;
+            height: 60px;
+            background: linear-gradient(145deg, #9b59b6, #8e44ad);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s ease;
+        }
+
+        /* 代码展示 */
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .code-keyword {
+            color: #569cd6;
+        }
+
+        .code-type {
+            color: #4ec9b0;
+        }
+
+        .code-string {
+            color: #ce9178;
+        }
+
+        .code-comment {
+            color: #6a9955;
+        }
+
+        .code-number {
+            color: #b5cea8;
+        }
+
+        .code-method {
+            color: #dcdcaa;
+        }
+
+        .code-highlight {
+            background: rgba(255, 255, 0, 0.2);
+            display: inline-block;
+            width: 100%;
+        }
+
+        /* 面试要点 */
+        .interview-points {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .point-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .point-card:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: #667eea;
+            transform: translateY(-5px);
+        }
+
+        .point-card h4 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .point-card p {
+            color: #ccc;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .point-icon {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+
+        /* 流程图 */
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+        }
+
+        .flow-box {
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        .flow-box.start {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 30px;
+        }
+
+        .flow-box.process {
+            background: linear-gradient(145deg, #2d3436, #636e72);
+            border: 2px solid #667eea;
+        }
+
+        .flow-box.decision {
+            background: linear-gradient(145deg, #f39c12, #e67e22);
+            transform: rotate(0deg);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            width: 180px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flow-box.success {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        .flow-box.fail {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .flow-box.active {
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.6);
+            transform: scale(1.05);
+        }
+
+        .flow-arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+
+        .flow-row {
+            display: flex;
+            gap: 50px;
+            align-items: center;
+        }
+
+        .flow-branch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .flow-label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .nav-tab { padding: 10px 16px; font-size: 0.9rem; }
+            .animation-canvas { padding: 15px; min-height: 350px; }
+            .clh-node { width: 90px; height: 60px; }
+            .node-thread { font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AQS 源码可视化讲解</h1>
+        <p class="subtitle">AbstractQueuedSynchronizer - Java并发包的基石</p>
+
+        <div class="nav-tabs">
+            <div class="nav-tab active" data-tab="overview">概述</div>
+            <div class="nav-tab" data-tab="clh">CLH队列</div>
+            <div class="nav-tab" data-tab="state">State状态</div>
+            <div class="nav-tab" data-tab="exclusive">独占模式</div>
+            <div class="nav-tab" data-tab="shared">共享模式</div>
+            <div class="nav-tab" data-tab="condition">Condition</div>
+            <div class="nav-tab" data-tab="interview">面试要点</div>
+        </div>
+
+        <!-- 概述 -->
+        <div id="overview" class="content-section active">
+            <div class="animation-canvas" style="display: flex; justify-content: center; align-items: center;">
+                <svg width="900" height="350" viewBox="0 0 900 350">
+                    <!-- AQS 核心结构图 -->
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea"/>
+                            <stop offset="100%" style="stop-color:#764ba2"/>
+                        </linearGradient>
+                        <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#00b4db"/>
+                            <stop offset="100%" style="stop-color:#0083b0"/>
+                        </linearGradient>
+                        <filter id="shadow">
+                            <feDropShadow dx="2" dy="4" stdDeviation="3" flood-opacity="0.3"/>
+                        </filter>
+                    </defs>
+
+                    <!-- 中心 AQS -->
+                    <rect x="350" y="120" width="200" height="100" rx="15" fill="url(#grad1)" filter="url(#shadow)">
+                        <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+                    </rect>
+                    <text x="450" y="160" text-anchor="middle" fill="white" font-size="20" font-weight="bold">AQS</text>
+                    <text x="450" y="185" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="12">AbstractQueuedSynchronizer</text>
+
+                    <!-- State -->
+                    <rect x="80" y="50" width="140" height="70" rx="10" fill="#2d3436" stroke="#00d4ff" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="150" y="80" text-anchor="middle" fill="#00d4ff" font-size="14" font-weight="bold">state</text>
+                    <text x="150" y="105" text-anchor="middle" fill="white" font-size="12">volatile int</text>
+                    <line x1="220" y1="85" x2="350" y2="150" stroke="#00d4ff" stroke-width="2" stroke-dasharray="5,5">
+                        <animate attributeName="stroke-dashoffset" values="10;0" dur="1s" repeatCount="indefinite"/>
+                    </line>
+
+                    <!-- CLH队列 -->
+                    <rect x="80" y="220" width="140" height="70" rx="10" fill="#2d3436" stroke="#f39c12" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="150" y="250" text-anchor="middle" fill="#f39c12" font-size="14" font-weight="bold">CLH队列</text>
+                    <text x="150" y="275" text-anchor="middle" fill="white" font-size="12">head ↔ tail</text>
+                    <line x1="220" y1="255" x2="350" y2="190" stroke="#f39c12" stroke-width="2" stroke-dasharray="5,5">
+                        <animate attributeName="stroke-dashoffset" values="10;0" dur="1s" repeatCount="indefinite"/>
+                    </line>
+
+                    <!-- 独占模式 -->
+                    <rect x="680" y="50" width="140" height="70" rx="10" fill="#2d3436" stroke="#e74c3c" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="750" y="80" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold">独占模式</text>
+                    <text x="750" y="105" text-anchor="middle" fill="white" font-size="12">ReentrantLock</text>
+                    <line x1="550" y1="150" x2="680" y2="85" stroke="#e74c3c" stroke-width="2" stroke-dasharray="5,5">
+                        <animate attributeName="stroke-dashoffset" values="10;0" dur="1s" repeatCount="indefinite"/>
+                    </line>
+
+                    <!-- 共享模式 -->
+                    <rect x="680" y="140" width="140" height="70" rx="10" fill="#2d3436" stroke="#9b59b6" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="750" y="170" text-anchor="middle" fill="#9b59b6" font-size="14" font-weight="bold">共享模式</text>
+                    <text x="750" y="195" text-anchor="middle" fill="white" font-size="12">Semaphore</text>
+                    <line x1="550" y1="170" x2="680" y2="175" stroke="#9b59b6" stroke-width="2" stroke-dasharray="5,5">
+                        <animate attributeName="stroke-dashoffset" values="10;0" dur="1s" repeatCount="indefinite"/>
+                    </line>
+
+                    <!-- Condition -->
+                    <rect x="680" y="230" width="140" height="70" rx="10" fill="#2d3436" stroke="#27ae60" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="750" y="260" text-anchor="middle" fill="#27ae60" font-size="14" font-weight="bold">Condition</text>
+                    <text x="750" y="285" text-anchor="middle" fill="white" font-size="12">条件等待队列</text>
+                    <line x1="550" y1="190" x2="680" y2="265" stroke="#27ae60" stroke-width="2" stroke-dasharray="5,5">
+                        <animate attributeName="stroke-dashoffset" values="10;0" dur="1s" repeatCount="indefinite"/>
+                    </line>
+                </svg>
+            </div>
+
+            <div class="info-panel">
+                <h3>什么是 AQS？</h3>
+                <p>AQS（AbstractQueuedSynchronizer）是 Java 并发包 <code>java.util.concurrent</code> 的核心基础框架，用于构建锁和同步器。</p>
+                <p>它通过一个 <code>volatile int state</code> 变量来表示同步状态，通过内置的 <strong>FIFO 队列（CLH变体）</strong> 来管理等待获取资源的线程。</p>
+                <p>常见的 <code>ReentrantLock</code>、<code>Semaphore</code>、<code>CountDownLatch</code>、<code>ReentrantReadWriteLock</code> 都是基于 AQS 实现的。</p>
+            </div>
+
+            <div class="interview-points">
+                <div class="point-card">
+                    <h4><span class="point-icon">1</span> 核心思想</h4>
+                    <p>如果请求的共享资源空闲，则将当前线程设置为有效工作线程，并将资源设为锁定状态；如果资源被占用，则需要一套线程阻塞等待及唤醒机制。</p>
+                </div>
+                <div class="point-card">
+                    <h4><span class="point-icon">2</span> 设计模式</h4>
+                    <p>采用模板方法模式，子类只需实现 <code>tryAcquire</code>、<code>tryRelease</code> 等方法，其他复杂的排队、阻塞、唤醒由 AQS 统一处理。</p>
+                </div>
+                <div class="point-card">
+                    <h4><span class="point-icon">3</span> 两种模式</h4>
+                    <p><strong>独占模式</strong>：只有一个线程能执行（如ReentrantLock）；<strong>共享模式</strong>：多个线程可同时执行（如Semaphore）。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLH队列 -->
+        <div id="clh" class="content-section">
+            <div class="animation-canvas" id="clh-canvas">
+                <div class="state-display">
+                    <div class="state-label">当前队列长度</div>
+                    <div class="state-value" id="queue-length">0</div>
+                </div>
+                <!-- 节点将通过JS动态添加 -->
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="clhDemo.addNode()">➕ 添加节点入队</button>
+                <button class="btn btn-success" onclick="clhDemo.acquireHead()">✅ 头节点获取锁</button>
+                <button class="btn btn-warning" onclick="clhDemo.releaseHead()">🔓 释放锁并出队</button>
+                <button class="btn btn-danger" onclick="clhDemo.reset()">🔄 重置</button>
+            </div>
+
+            <div class="log-panel" id="clh-log"></div>
+
+            <div class="info-panel">
+                <h3>CLH 队列详解</h3>
+                <p>CLH（Craig, Landin, and Hagersten）队列是一个虚拟的双向队列（FIFO），AQS 将等待获取锁的线程封装成 <code>Node</code> 节点加入队列。</p>
+
+                <div class="code-block">
+<span class="code-keyword">static final class</span> <span class="code-type">Node</span> {
+    <span class="code-comment">// 等待状态</span>
+    <span class="code-keyword">volatile int</span> waitStatus;
+
+    <span class="code-comment">// 前驱节点</span>
+    <span class="code-keyword">volatile</span> <span class="code-type">Node</span> prev;
+
+    <span class="code-comment">// 后继节点</span>
+    <span class="code-keyword">volatile</span> <span class="code-type">Node</span> next;
+
+    <span class="code-comment">// 入队的线程</span>
+    <span class="code-keyword">volatile</span> <span class="code-type">Thread</span> thread;
+
+    <span class="code-comment">// 等待状态常量</span>
+    <span class="code-keyword">static final int</span> CANCELLED = <span class="code-number">1</span>;   <span class="code-comment">// 取消</span>
+    <span class="code-keyword">static final int</span> SIGNAL = <span class="code-number">-1</span>;     <span class="code-comment">// 需唤醒后继</span>
+    <span class="code-keyword">static final int</span> CONDITION = <span class="code-number">-2</span>;  <span class="code-comment">// 条件等待</span>
+    <span class="code-keyword">static final int</span> PROPAGATE = <span class="code-number">-3</span>;  <span class="code-comment">// 共享传播</span>
+}
+                </div>
+
+                <p><strong>关键点：</strong></p>
+                <p>• <code>head</code> 指向队列头部（通常是持有锁的节点或哨兵节点）</p>
+                <p>• <code>tail</code> 指向队列尾部（最后加入的等待节点）</p>
+                <p>• 入队操作使用 <strong>CAS + 自旋</strong> 保证线程安全</p>
+            </div>
+        </div>
+
+        <!-- State状态 -->
+        <div id="state" class="content-section">
+            <div class="animation-canvas" id="state-canvas">
+                <div style="display: flex; justify-content: center; align-items: center; height: 100%; gap: 80px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; color: #aaa; margin-bottom: 15px;">独占锁状态</div>
+                        <div style="width: 150px; height: 150px; border-radius: 50%; background: linear-gradient(145deg, #2d3436, #636e72); display: flex; align-items: center; justify-content: center; border: 4px solid #e74c3c; margin: 0 auto;">
+                            <span id="exclusive-state" style="font-size: 4rem; font-weight: bold; color: #00d4ff;">0</span>
+                        </div>
+                        <div style="margin-top: 15px; color: #ccc;">
+                            <span id="exclusive-status">🔓 未锁定</span>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; color: #aaa; margin-bottom: 15px;">共享锁状态 (Semaphore)</div>
+                        <div style="width: 150px; height: 150px; border-radius: 50%; background: linear-gradient(145deg, #2d3436, #636e72); display: flex; align-items: center; justify-content: center; border: 4px solid #9b59b6; margin: 0 auto;">
+                            <span id="shared-state" style="font-size: 4rem; font-weight: bold; color: #00d4ff;">3</span>
+                        </div>
+                        <div style="margin-top: 15px; color: #ccc;">
+                            <span id="shared-status">📊 可用许可: 3</span>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; color: #aaa; margin-bottom: 15px;">可重入次数</div>
+                        <div style="width: 150px; height: 150px; border-radius: 50%; background: linear-gradient(145deg, #2d3436, #636e72); display: flex; align-items: center; justify-content: center; border: 4px solid #27ae60; margin: 0 auto;">
+                            <span id="reentrant-state" style="font-size: 4rem; font-weight: bold; color: #00d4ff;">0</span>
+                        </div>
+                        <div style="margin-top: 15px; color: #ccc;">
+                            <span id="reentrant-status">重入次数: 0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="stateDemo.exclusiveLock()">🔒 独占锁 Lock</button>
+                <button class="btn btn-success" onclick="stateDemo.exclusiveUnlock()">🔓 独占锁 Unlock</button>
+                <button class="btn btn-warning" onclick="stateDemo.sharedAcquire()">📥 Semaphore Acquire</button>
+                <button class="btn btn-danger" onclick="stateDemo.sharedRelease()">📤 Semaphore Release</button>
+                <button class="btn btn-primary" onclick="stateDemo.reentrantLock()">🔄 重入Lock</button>
+            </div>
+
+            <div class="log-panel" id="state-log"></div>
+
+            <div class="info-panel">
+                <h3>State 状态变量</h3>
+                <p><code>state</code> 是 AQS 的核心状态变量，使用 <code>volatile</code> 保证可见性，通过 <code>CAS</code> 操作保证原子性。</p>
+
+                <div class="code-block">
+<span class="code-comment">// state 变量定义</span>
+<span class="code-keyword">private volatile int</span> state;
+
+<span class="code-comment">// 获取状态</span>
+<span class="code-keyword">protected final int</span> <span class="code-method">getState</span>() {
+    <span class="code-keyword">return</span> state;
+}
+
+<span class="code-comment">// 设置状态</span>
+<span class="code-keyword">protected final void</span> <span class="code-method">setState</span>(<span class="code-keyword">int</span> newState) {
+    state = newState;
+}
+
+<span class="code-comment">// CAS 修改状态（原子操作）</span>
+<span class="code-keyword">protected final boolean</span> <span class="code-method">compareAndSetState</span>(<span class="code-keyword">int</span> expect, <span class="code-keyword">int</span> update) {
+    <span class="code-keyword">return</span> <span class="code-type">U</span>.compareAndSetInt(<span class="code-keyword">this</span>, STATE, expect, update);
+}
+                </div>
+
+                <p><strong>不同锁中 state 的含义：</strong></p>
+                <p>• <strong>ReentrantLock</strong>：0 表示未锁定，≥1 表示锁定（值为重入次数）</p>
+                <p>• <strong>Semaphore</strong>：表示可用的许可数量</p>
+                <p>• <strong>CountDownLatch</strong>：表示需要等待的计数</p>
+                <p>• <strong>ReentrantReadWriteLock</strong>：高16位为读锁计数，低16位为写锁计数</p>
+            </div>
+        </div>
+
+        <!-- 独占模式 -->
+        <div id="exclusive" class="content-section">
+            <div class="animation-canvas" id="exclusive-canvas">
+                <div class="flow-container" id="acquire-flow">
+                    <div class="flow-box start" id="flow-start">acquire(1)</div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-box process" id="flow-tryAcquire">tryAcquire(1)</div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-row">
+                        <div class="flow-branch">
+                            <div class="flow-label">成功</div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-box success" id="flow-success">获取锁成功 ✓</div>
+                        </div>
+                        <div class="flow-branch">
+                            <div class="flow-label">失败</div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-box process" id="flow-addWaiter">addWaiter(EXCLUSIVE)</div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-box process" id="flow-acquireQueued">acquireQueued()</div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-box fail" id="flow-park">park() 阻塞</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="exclusiveDemo.simulateAcquire()">▶️ 演示 acquire 流程</button>
+                <button class="btn btn-success" onclick="exclusiveDemo.simulateRelease()">▶️ 演示 release 流程</button>
+                <button class="btn btn-danger" onclick="exclusiveDemo.reset()">🔄 重置</button>
+            </div>
+
+            <div class="log-panel" id="exclusive-log"></div>
+
+            <div class="info-panel">
+                <h3>独占模式 - acquire 源码</h3>
+                <div class="code-block">
+<span class="code-keyword">public final void</span> <span class="code-method">acquire</span>(<span class="code-keyword">int</span> arg) {
+    <span class="code-comment">// 1. 先尝试获取锁</span>
+    <span class="code-keyword">if</span> (!<span class="code-method">tryAcquire</span>(arg) &&
+        <span class="code-comment">// 2. 获取失败则加入等待队列</span>
+        <span class="code-method">acquireQueued</span>(<span class="code-method">addWaiter</span>(<span class="code-type">Node</span>.EXCLUSIVE), arg))
+        <span class="code-comment">// 3. 如果等待过程中被中断，则自我中断</span>
+        <span class="code-method">selfInterrupt</span>();
+}
+
+<span class="code-comment">// 加入等待队列（CAS自旋）</span>
+<span class="code-keyword">private</span> <span class="code-type">Node</span> <span class="code-method">addWaiter</span>(<span class="code-type">Node</span> mode) {
+    <span class="code-type">Node</span> node = <span class="code-keyword">new</span> <span class="code-type">Node</span>(mode);
+    <span class="code-keyword">for</span> (;;) {
+        <span class="code-type">Node</span> oldTail = tail;
+        <span class="code-keyword">if</span> (oldTail != <span class="code-keyword">null</span>) {
+            node.setPrevRelaxed(oldTail);
+            <span class="code-keyword">if</span> (<span class="code-method">compareAndSetTail</span>(oldTail, node)) {
+                oldTail.next = node;
+                <span class="code-keyword">return</span> node;
+            }
+        } <span class="code-keyword">else</span> {
+            <span class="code-method">initializeSyncQueue</span>();
+        }
+    }
+}
+                </div>
+            </div>
+        </div>
+
+        <!-- 共享模式 -->
+        <div id="shared" class="content-section">
+            <div class="animation-canvas" id="shared-canvas">
+                <div style="position: relative; width: 100%; height: 100%;">
+                    <div class="state-display" style="left: 30px; right: auto;">
+                        <div class="state-label">Semaphore permits</div>
+                        <div class="state-value" id="semaphore-permits">3</div>
+                    </div>
+
+                    <!-- 共享资源可视化 -->
+                    <div id="shared-resources" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 20px;">
+                        <div class="resource-slot" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(145deg, #27ae60, #2ecc71); display: flex; align-items: center; justify-content: center; font-size: 2rem; transition: all 0.3s;">✓</div>
+                        <div class="resource-slot" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(145deg, #27ae60, #2ecc71); display: flex; align-items: center; justify-content: center; font-size: 2rem; transition: all 0.3s;">✓</div>
+                        <div class="resource-slot" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(145deg, #27ae60, #2ecc71); display: flex; align-items: center; justify-content: center; font-size: 2rem; transition: all 0.3s;">✓</div>
+                    </div>
+
+                    <!-- 等待线程 -->
+                    <div id="shared-waiting" style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px;"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="sharedDemo.acquire()">📥 线程获取许可</button>
+                <button class="btn btn-success" onclick="sharedDemo.release()">📤 线程释放许可</button>
+                <button class="btn btn-warning" onclick="sharedDemo.propagate()">📢 演示传播机制</button>
+                <button class="btn btn-danger" onclick="sharedDemo.reset()">🔄 重置</button>
+            </div>
+
+            <div class="log-panel" id="shared-log"></div>
+
+            <div class="info-panel">
+                <h3>共享模式 - acquireShared 源码</h3>
+                <div class="code-block">
+<span class="code-keyword">public final void</span> <span class="code-method">acquireShared</span>(<span class="code-keyword">int</span> arg) {
+    <span class="code-comment">// tryAcquireShared 返回值 < 0 表示获取失败</span>
+    <span class="code-keyword">if</span> (<span class="code-method">tryAcquireShared</span>(arg) < <span class="code-number">0</span>)
+        <span class="code-method">doAcquireShared</span>(arg);
+}
+
+<span class="code-comment">// 共享模式下释放后会传播唤醒</span>
+<span class="code-keyword">private void</span> <span class="code-method">doAcquireShared</span>(<span class="code-keyword">int</span> arg) {
+    <span class="code-keyword">final</span> <span class="code-type">Node</span> node = <span class="code-method">addWaiter</span>(<span class="code-type">Node</span>.SHARED);
+    <span class="code-keyword">for</span> (;;) {
+        <span class="code-keyword">final</span> <span class="code-type">Node</span> p = node.<span class="code-method">predecessor</span>();
+        <span class="code-keyword">if</span> (p == head) {
+            <span class="code-keyword">int</span> r = <span class="code-method">tryAcquireShared</span>(arg);
+            <span class="code-keyword">if</span> (r >= <span class="code-number">0</span>) {
+                <span class="code-comment">// 设置头节点并传播唤醒后续共享节点</span>
+                <span class="code-method">setHeadAndPropagate</span>(node, r);
+                <span class="code-keyword">return</span>;
+            }
+        }
+        <span class="code-method">parkAndCheckInterrupt</span>();
+    }
+}
+                </div>
+                <p><strong>共享模式的传播机制：</strong>当一个共享节点获取到资源后，如果还有剩余资源，会唤醒后续的共享节点，形成连锁唤醒效果。</p>
+            </div>
+        </div>
+
+        <!-- Condition -->
+        <div id="condition" class="content-section">
+            <div class="animation-canvas" id="condition-canvas">
+                <div style="position: relative; width: 100%; height: 100%;">
+                    <!-- 同步队列 -->
+                    <div style="position: absolute; top: 30px; left: 50px;">
+                        <div style="color: #f39c12; font-weight: bold; margin-bottom: 10px;">🔗 同步队列 (Sync Queue)</div>
+                        <div id="sync-queue" style="display: flex; gap: 15px; align-items: center;"></div>
+                    </div>
+
+                    <!-- 条件队列 -->
+                    <div style="position: absolute; bottom: 30px; left: 50px;">
+                        <div style="color: #9b59b6; font-weight: bold; margin-bottom: 10px;">⏳ 条件队列 (Condition Queue)</div>
+                        <div id="condition-queue" style="display: flex; gap: 15px; align-items: center;"></div>
+                    </div>
+
+                    <!-- 转移箭头 -->
+                    <svg style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#667eea"/>
+                            </marker>
+                        </defs>
+                        <path id="transfer-arrow" d="" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)" stroke-dasharray="10,5" opacity="0"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="conditionDemo.await()">⏸️ await() 等待</button>
+                <button class="btn btn-success" onclick="conditionDemo.signal()">📢 signal() 唤醒</button>
+                <button class="btn btn-warning" onclick="conditionDemo.signalAll()">📣 signalAll() 全部唤醒</button>
+                <button class="btn btn-danger" onclick="conditionDemo.reset()">🔄 重置</button>
+            </div>
+
+            <div class="log-panel" id="condition-log"></div>
+
+            <div class="info-panel">
+                <h3>Condition 条件队列</h3>
+                <p>Condition 是 AQS 内部类 <code>ConditionObject</code> 的实例，用于实现类似 <code>Object.wait/notify</code> 的功能。</p>
+
+                <div class="code-block">
+<span class="code-keyword">public final void</span> <span class="code-method">await</span>() {
+    <span class="code-comment">// 1. 将当前线程封装成 Node 加入条件队列</span>
+    <span class="code-type">Node</span> node = <span class="code-method">addConditionWaiter</span>();
+
+    <span class="code-comment">// 2. 完全释放锁（支持重入）</span>
+    <span class="code-keyword">int</span> savedState = <span class="code-method">fullyRelease</span>(node);
+
+    <span class="code-comment">// 3. 在条件队列中等待，直到被 signal</span>
+    <span class="code-keyword">while</span> (!<span class="code-method">isOnSyncQueue</span>(node)) {
+        <span class="code-type">LockSupport</span>.<span class="code-method">park</span>(<span class="code-keyword">this</span>);
+    }
+
+    <span class="code-comment">// 4. 被唤醒后，重新竞争锁</span>
+    <span class="code-method">acquireQueued</span>(node, savedState);
+}
+
+<span class="code-keyword">public final void</span> <span class="code-method">signal</span>() {
+    <span class="code-comment">// 将条件队列的第一个节点转移到同步队列</span>
+    <span class="code-type">Node</span> first = firstWaiter;
+    <span class="code-keyword">if</span> (first != <span class="code-keyword">null</span>)
+        <span class="code-method">doSignal</span>(first);
+}
+                </div>
+
+                <p><strong>核心流程：</strong></p>
+                <p>• <code>await()</code>：释放锁 → 加入条件队列 → 阻塞等待</p>
+                <p>• <code>signal()</code>：将节点从条件队列转移到同步队列 → 等待获取锁</p>
+            </div>
+        </div>
+
+        <!-- 面试要点 -->
+        <div id="interview" class="content-section">
+            <div class="interview-points" style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
+                <div class="point-card">
+                    <h4><span class="point-icon">Q1</span> AQS 的核心原理是什么？</h4>
+                    <p>AQS 通过一个 <code>volatile int state</code> 变量和一个 FIFO 等待队列来管理同步状态。state 表示资源的占用状态，队列存放等待获取资源的线程。获取资源时先尝试 CAS 修改 state，失败则入队等待；释放资源时修改 state 并唤醒队列中的等待线程。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q2</span> 独占模式和共享模式的区别？</h4>
+                    <p><strong>独占模式</strong>：同一时刻只能有一个线程获取资源（如 ReentrantLock）。<strong>共享模式</strong>：同一时刻可以有多个线程获取资源（如 Semaphore、CountDownLatch）。主要区别在于 tryAcquire vs tryAcquireShared 的实现，以及共享模式有传播唤醒机制。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q3</span> CLH 队列的特点？</h4>
+                    <p>CLH 队列是一个虚拟的双向队列，通过 prev/next 指针连接 Node 节点。入队使用 CAS+自旋 保证线程安全，出队只需修改 head 指针。每个节点有 waitStatus 状态：SIGNAL(-1) 表示后继需要被唤醒，CANCELLED(1) 表示取消等待。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q4</span> 为什么用 CAS + volatile？</h4>
+                    <p><code>volatile</code> 保证 state 的可见性，多线程读取时能获取最新值。<code>CAS</code> 保证 state 修改的原子性，避免使用重量级锁。这种组合被称为"无锁编程"，性能高于 synchronized。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q5</span> ReentrantLock 如何实现可重入？</h4>
+                    <p>每次获取锁时检查当前线程是否是锁的持有者（exclusiveOwnerThread），如果是则 state+1 而非竞争锁；释放锁时 state-1，只有当 state=0 时才真正释放锁并唤醒其他线程。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q6</span> Condition 和 Object.wait 的区别？</h4>
+                    <p>• Condition 可以创建多个等待队列，Object 只有一个<br>
+                    • Condition 支持不响应中断的等待<br>
+                    • Condition 必须配合 Lock 使用，更灵活<br>
+                    • Condition 支持指定唤醒某个队列的线程</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q7</span> 公平锁与非公平锁的实现区别？</h4>
+                    <p><strong>非公平锁</strong>：新来的线程直接尝试 CAS 获取锁，失败才入队。<strong>公平锁</strong>：新来的线程先检查队列是否有等待者（hasQueuedPredecessors），有则直接入队等待。非公平锁性能更好（减少线程切换），公平锁避免饥饿。</p>
+                </div>
+
+                <div class="point-card">
+                    <h4><span class="point-icon">Q8</span> AQS 用到了哪些设计模式？</h4>
+                    <p><strong>模板方法模式</strong>：acquire/release 定义了算法骨架，tryAcquire/tryRelease 由子类实现具体逻辑。这样子类只需关注同步语义的实现，队列管理、线程阻塞等复杂操作由 AQS 统一处理。</p>
+                </div>
+            </div>
+
+            <div class="info-panel" style="margin-top: 30px;">
+                <h3>💡 面试加分项</h3>
+                <p>• 能够画出 AQS 的整体结构图（state + CLH队列 + Condition队列）</p>
+                <p>• 理解 LockSupport.park/unpark 的底层原理（Unsafe 类）</p>
+                <p>• 知道 AQS 的变种实现，如 ReentrantReadWriteLock 中的读写分离</p>
+                <p>• 了解 JDK 不同版本对 AQS 的优化（如 JDK8 的 VarHandle）</p>
+                <p>• 能够手写简单的自定义同步器（如互斥锁、信号量）</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 标签切换
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // CLH队列演示
+        const clhDemo = {
+            nodes: [],
+            nodeId: 0,
+
+            addNode() {
+                const canvas = document.getElementById('clh-canvas');
+                const node = document.createElement('div');
+                node.className = 'clh-node waiting';
+                node.id = `clh-node-${this.nodeId}`;
+
+                const threadName = `Thread-${this.nodeId}`;
+                node.innerHTML = `
+                    <div class="node-thread">${threadName}</div>
+                    <div class="node-status">WAITING</div>
+                    <div class="node-waitStatus">ws: -1</div>
+                `;
+
+                const x = 100 + this.nodes.length * 150;
+                node.style.left = x + 'px';
+                node.style.top = '150px';
+                node.style.opacity = '0';
+                node.style.transform = 'scale(0)';
+
+                canvas.appendChild(node);
+
+                setTimeout(() => {
+                    node.style.opacity = '1';
+                    node.style.transform = 'scale(1)';
+                }, 50);
+
+                // 添加箭头
+                if (this.nodes.length > 0) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'arrow';
+                    arrow.style.left = (x - 30) + 'px';
+                    arrow.style.top = '190px';
+                    arrow.style.width = '30px';
+                    canvas.appendChild(arrow);
+                }
+
+                this.nodes.push({ id: this.nodeId, thread: threadName });
+                this.nodeId++;
+
+                document.getElementById('queue-length').textContent = this.nodes.length;
+                this.log(`${threadName} 入队等待`, 'action');
+            },
+
+            acquireHead() {
+                if (this.nodes.length === 0) {
+                    this.log('队列为空，无法获取锁', 'fail');
+                    return;
+                }
+
+                const headNode = document.querySelector('.clh-node.waiting');
+                if (headNode) {
+                    headNode.classList.remove('waiting');
+                    headNode.classList.add('acquired');
+                    headNode.querySelector('.node-status').textContent = 'ACQUIRED';
+                    this.log(`${this.nodes[0].thread} 获取锁成功`, 'success');
+                }
+            },
+
+            releaseHead() {
+                const acquiredNode = document.querySelector('.clh-node.acquired');
+                if (!acquiredNode) {
+                    this.log('当前没有持有锁的线程', 'fail');
+                    return;
+                }
+
+                const releasedThread = this.nodes.shift();
+                acquiredNode.style.opacity = '0';
+                acquiredNode.style.transform = 'translateY(-50px)';
+
+                setTimeout(() => {
+                    acquiredNode.remove();
+                    // 移动其他节点
+                    document.querySelectorAll('.clh-node').forEach((node, index) => {
+                        node.style.left = (100 + index * 150) + 'px';
+                    });
+                    // 移除第一个箭头
+                    const firstArrow = document.querySelector('.arrow');
+                    if (firstArrow) firstArrow.remove();
+                }, 300);
+
+                document.getElementById('queue-length').textContent = this.nodes.length;
+                this.log(`${releasedThread.thread} 释放锁并出队`, 'success');
+
+                // 自动让下一个获取锁
+                setTimeout(() => this.acquireHead(), 500);
+            },
+
+            reset() {
+                const canvas = document.getElementById('clh-canvas');
+                canvas.querySelectorAll('.clh-node, .arrow').forEach(el => el.remove());
+                this.nodes = [];
+                this.nodeId = 0;
+                document.getElementById('queue-length').textContent = '0';
+                document.getElementById('clh-log').innerHTML = '';
+                this.log('队列已重置', 'action');
+            },
+
+            log(message, type) {
+                const logPanel = document.getElementById('clh-log');
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        };
+
+        // State演示
+        const stateDemo = {
+            exclusiveState: 0,
+            sharedState: 3,
+            reentrantCount: 0,
+
+            exclusiveLock() {
+                if (this.exclusiveState === 0) {
+                    this.exclusiveState = 1;
+                    this.reentrantCount = 1;
+                    this.updateDisplay();
+                    this.log('CAS(0, 1) 成功，获取独占锁', 'success');
+                } else {
+                    this.log('CAS(0, 1) 失败，锁已被占用', 'fail');
+                }
+            },
+
+            exclusiveUnlock() {
+                if (this.exclusiveState > 0) {
+                    this.exclusiveState = 0;
+                    this.reentrantCount = 0;
+                    this.updateDisplay();
+                    this.log('释放独占锁，state = 0', 'success');
+                } else {
+                    this.log('当前未持有锁', 'fail');
+                }
+            },
+
+            sharedAcquire() {
+                if (this.sharedState > 0) {
+                    this.sharedState--;
+                    this.updateDisplay();
+                    this.log(`获取许可成功，剩余 ${this.sharedState}`, 'success');
+                } else {
+                    this.log('无可用许可，需要等待', 'fail');
+                }
+            },
+
+            sharedRelease() {
+                this.sharedState++;
+                this.updateDisplay();
+                this.log(`释放许可，当前 ${this.sharedState}`, 'success');
+            },
+
+            reentrantLock() {
+                if (this.exclusiveState === 0) {
+                    this.exclusiveState = 1;
+                    this.reentrantCount = 1;
+                    this.log('首次获取锁，state = 1', 'success');
+                } else {
+                    this.exclusiveState++;
+                    this.reentrantCount++;
+                    this.log(`重入锁，state = ${this.exclusiveState}`, 'success');
+                }
+                this.updateDisplay();
+            },
+
+            updateDisplay() {
+                const exclusiveEl = document.getElementById('exclusive-state');
+                const sharedEl = document.getElementById('shared-state');
+                const reentrantEl = document.getElementById('reentrant-state');
+
+                exclusiveEl.textContent = this.exclusiveState;
+                exclusiveEl.classList.add('changing');
+                setTimeout(() => exclusiveEl.classList.remove('changing'), 500);
+
+                sharedEl.textContent = this.sharedState;
+                sharedEl.classList.add('changing');
+                setTimeout(() => sharedEl.classList.remove('changing'), 500);
+
+                reentrantEl.textContent = this.reentrantCount;
+                reentrantEl.classList.add('changing');
+                setTimeout(() => reentrantEl.classList.remove('changing'), 500);
+
+                document.getElementById('exclusive-status').textContent = this.exclusiveState > 0 ? '🔒 已锁定' : '🔓 未锁定';
+                document.getElementById('shared-status').textContent = `📊 可用许可: ${this.sharedState}`;
+                document.getElementById('reentrant-status').textContent = `重入次数: ${this.reentrantCount}`;
+            },
+
+            log(message, type) {
+                const logPanel = document.getElementById('state-log');
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        };
+
+        // 独占模式演示
+        const exclusiveDemo = {
+            async simulateAcquire() {
+                const steps = ['flow-start', 'flow-tryAcquire', 'flow-addWaiter', 'flow-acquireQueued', 'flow-park'];
+
+                for (let i = 0; i < steps.length; i++) {
+                    document.querySelectorAll('.flow-box').forEach(box => box.classList.remove('active'));
+                    document.getElementById(steps[i]).classList.add('active');
+                    this.log(`执行: ${document.getElementById(steps[i]).textContent}`, 'action');
+                    await this.delay(1000);
+                }
+
+                this.log('线程进入阻塞状态，等待被唤醒', 'success');
+            },
+
+            async simulateRelease() {
+                this.log('执行 release(1)', 'action');
+                await this.delay(500);
+                this.log('tryRelease(1) → state = 0', 'success');
+                await this.delay(500);
+                this.log('unparkSuccessor() → 唤醒队首线程', 'action');
+                await this.delay(500);
+
+                document.querySelectorAll('.flow-box').forEach(box => box.classList.remove('active'));
+                document.getElementById('flow-success').classList.add('active');
+                this.log('被唤醒线程获取锁成功！', 'success');
+            },
+
+            reset() {
+                document.querySelectorAll('.flow-box').forEach(box => box.classList.remove('active'));
+                document.getElementById('exclusive-log').innerHTML = '';
+            },
+
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            },
+
+            log(message, type) {
+                const logPanel = document.getElementById('exclusive-log');
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        };
+
+        // 共享模式演示
+        const sharedDemo = {
+            permits: 3,
+            waiting: [],
+            threadId: 0,
+
+            acquire() {
+                const slots = document.querySelectorAll('.resource-slot');
+                const availableSlot = Array.from(slots).find(s => s.textContent === '✓');
+
+                if (availableSlot) {
+                    this.permits--;
+                    availableSlot.textContent = `T${this.threadId}`;
+                    availableSlot.style.background = 'linear-gradient(145deg, #e74c3c, #c0392b)';
+                    document.getElementById('semaphore-permits').textContent = this.permits;
+                    this.log(`Thread-${this.threadId} 获取许可成功`, 'success');
+                    this.threadId++;
+                } else {
+                    // 加入等待
+                    const waitDiv = document.getElementById('shared-waiting');
+                    const node = document.createElement('div');
+                    node.className = 'condition-node';
+                    node.id = `waiting-${this.threadId}`;
+                    node.innerHTML = `<div>T${this.threadId}</div><div style="font-size:0.7rem">等待中</div>`;
+                    waitDiv.appendChild(node);
+                    this.waiting.push(this.threadId);
+                    this.log(`Thread-${this.threadId} 无许可，加入等待队列`, 'fail');
+                    this.threadId++;
+                }
+            },
+
+            release() {
+                const slots = document.querySelectorAll('.resource-slot');
+                const occupiedSlot = Array.from(slots).find(s => s.textContent !== '✓');
+
+                if (occupiedSlot) {
+                    const releasedThread = occupiedSlot.textContent;
+                    occupiedSlot.textContent = '✓';
+                    occupiedSlot.style.background = 'linear-gradient(145deg, #27ae60, #2ecc71)';
+                    this.permits++;
+                    document.getElementById('semaphore-permits').textContent = this.permits;
+                    this.log(`${releasedThread} 释放许可`, 'success');
+
+                    // 唤醒等待线程
+                    if (this.waiting.length > 0) {
+                        setTimeout(() => this.wakeupWaiting(), 300);
+                    }
+                } else {
+                    this.log('当前没有线程持有许可', 'fail');
+                }
+            },
+
+            wakeupWaiting() {
+                if (this.waiting.length > 0 && this.permits > 0) {
+                    const threadId = this.waiting.shift();
+                    const waitingNode = document.getElementById(`waiting-${threadId}`);
+                    if (waitingNode) {
+                        waitingNode.style.opacity = '0';
+                        setTimeout(() => waitingNode.remove(), 300);
+                    }
+
+                    const slots = document.querySelectorAll('.resource-slot');
+                    const availableSlot = Array.from(slots).find(s => s.textContent === '✓');
+                    if (availableSlot) {
+                        this.permits--;
+                        availableSlot.textContent = `T${threadId}`;
+                        availableSlot.style.background = 'linear-gradient(145deg, #e74c3c, #c0392b)';
+                        document.getElementById('semaphore-permits').textContent = this.permits;
+                        this.log(`唤醒 Thread-${threadId}，获取许可成功`, 'success');
+                    }
+                }
+            },
+
+            async propagate() {
+                this.log('演示共享模式的传播唤醒机制...', 'action');
+                await this.delay(500);
+
+                // 释放多个许可
+                const slots = document.querySelectorAll('.resource-slot');
+                for (let slot of slots) {
+                    if (slot.textContent !== '✓') {
+                        slot.textContent = '✓';
+                        slot.style.background = 'linear-gradient(145deg, #27ae60, #2ecc71)';
+                        this.permits++;
+                        await this.delay(300);
+                    }
+                }
+
+                document.getElementById('semaphore-permits').textContent = this.permits;
+
+                // 连续唤醒等待线程
+                while (this.waiting.length > 0 && this.permits > 0) {
+                    this.log('传播唤醒下一个共享节点...', 'action');
+                    await this.delay(500);
+                    this.wakeupWaiting();
+                }
+
+                this.log('传播唤醒完成', 'success');
+            },
+
+            reset() {
+                this.permits = 3;
+                this.waiting = [];
+                this.threadId = 0;
+
+                document.querySelectorAll('.resource-slot').forEach(slot => {
+                    slot.textContent = '✓';
+                    slot.style.background = 'linear-gradient(145deg, #27ae60, #2ecc71)';
+                });
+
+                document.getElementById('shared-waiting').innerHTML = '';
+                document.getElementById('semaphore-permits').textContent = '3';
+                document.getElementById('shared-log').innerHTML = '';
+            },
+
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            },
+
+            log(message, type) {
+                const logPanel = document.getElementById('shared-log');
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        };
+
+        // Condition演示
+        const conditionDemo = {
+            syncQueue: [],
+            conditionQueue: [],
+            threadId: 0,
+
+            init() {
+                // 初始化同步队列头节点
+                this.addToSyncQueue('HEAD', true);
+            },
+
+            addToSyncQueue(name, isHead = false) {
+                const queue = document.getElementById('sync-queue');
+                const node = document.createElement('div');
+                node.className = `clh-node ${isHead ? 'head' : 'waiting'}`;
+                node.style.position = 'relative';
+                node.style.width = '100px';
+                node.style.height = '60px';
+                node.innerHTML = `<div class="node-thread">${name}</div><div class="node-status">${isHead ? 'HEAD' : 'WAITING'}</div>`;
+                queue.appendChild(node);
+                this.syncQueue.push(name);
+            },
+
+            addToConditionQueue(name) {
+                const queue = document.getElementById('condition-queue');
+                const node = document.createElement('div');
+                node.className = 'condition-node';
+                node.id = `cond-${name}`;
+                node.innerHTML = `<div>${name}</div><div style="font-size:0.7rem">CONDITION</div>`;
+                queue.appendChild(node);
+                this.conditionQueue.push(name);
+            },
+
+            async await() {
+                const threadName = `T${this.threadId++}`;
+
+                // 先加入同步队列表示持有锁
+                this.addToSyncQueue(threadName);
+                this.log(`${threadName} 持有锁`, 'action');
+                await this.delay(500);
+
+                // 调用await，转移到条件队列
+                this.log(`${threadName} 调用 await()，释放锁`, 'action');
+                await this.delay(500);
+
+                // 从同步队列移除
+                const syncQueue = document.getElementById('sync-queue');
+                const lastNode = syncQueue.lastElementChild;
+                if (lastNode && lastNode.textContent.includes(threadName)) {
+                    lastNode.style.opacity = '0';
+                    await this.delay(300);
+                    lastNode.remove();
+                    this.syncQueue.pop();
+                }
+
+                // 加入条件队列
+                this.addToConditionQueue(threadName);
+                this.log(`${threadName} 加入条件队列等待`, 'success');
+            },
+
+            async signal() {
+                if (this.conditionQueue.length === 0) {
+                    this.log('条件队列为空，无需唤醒', 'fail');
+                    return;
+                }
+
+                const threadName = this.conditionQueue.shift();
+                this.log(`signal() 唤醒 ${threadName}`, 'action');
+                await this.delay(500);
+
+                // 从条件队列移除
+                const condNode = document.getElementById(`cond-${threadName}`);
+                if (condNode) {
+                    condNode.style.transform = 'translateY(-50px)';
+                    condNode.style.opacity = '0';
+                    await this.delay(300);
+                    condNode.remove();
+                }
+
+                // 加入同步队列
+                this.addToSyncQueue(threadName);
+                this.log(`${threadName} 转移到同步队列，等待重新获取锁`, 'success');
+            },
+
+            async signalAll() {
+                if (this.conditionQueue.length === 0) {
+                    this.log('条件队列为空，无需唤醒', 'fail');
+                    return;
+                }
+
+                this.log(`signalAll() 唤醒所有等待线程`, 'action');
+
+                while (this.conditionQueue.length > 0) {
+                    await this.signal();
+                    await this.delay(300);
+                }
+
+                this.log('所有线程已转移到同步队列', 'success');
+            },
+
+            reset() {
+                this.syncQueue = [];
+                this.conditionQueue = [];
+                this.threadId = 0;
+                document.getElementById('sync-queue').innerHTML = '';
+                document.getElementById('condition-queue').innerHTML = '';
+                document.getElementById('condition-log').innerHTML = '';
+                this.init();
+            },
+
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            },
+
+            log(message, type) {
+                const logPanel = document.getElementById('condition-log');
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+                logPanel.appendChild(entry);
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+        };
+
+        // 初始化
+        conditionDemo.init();
+    </script>
+</body>
+</html>
