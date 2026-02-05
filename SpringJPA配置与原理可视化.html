@@ -1,0 +1,1905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring JPA 配置与原理可视化演示</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #eee;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .title {
+            text-align: center;
+            padding: 40px 0 20px 0;
+        }
+
+        .title h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1em;
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(102,126,234,0.3);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+            border-color: rgba(102,126,234,0.8);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            border-color: transparent;
+            box-shadow: 0 5px 20px rgba(102,126,234,0.6);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h3 {
+            color: #ffd700;
+            margin: 25px 0 15px 0;
+            font-size: 1.3em;
+        }
+
+        .code-block {
+            background: #1a1a2e;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            overflow-x: auto;
+            border-left: 4px solid #667eea;
+            position: relative;
+        }
+
+        .code-block::before {
+            content: attr(data-lang);
+            position: absolute;
+            top: 5px;
+            right: 15px;
+            color: #667eea;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .code-block pre {
+            color: #f8f8f2;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .keyword { color: #ff79c6; }
+        .string { color: #50fa7b; }
+        .comment { color: #6272a4; font-style: italic; }
+        .function { color: #8be9fd; }
+        .annotation { color: #f1fa8c; }
+        .number { color: #bd93f9; }
+
+        .animation-area {
+            background: rgba(255,255,255,0.03);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 25px 0;
+            min-height: 500px;
+            position: relative;
+            border: 2px solid rgba(102,126,234,0.2);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102,126,234,0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #434343 0%, #000000 100%);
+        }
+
+        .explanation {
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            line-height: 1.8;
+        }
+
+        .explanation ul, .explanation ol {
+            padding-left: 30px;
+            margin: 15px 0;
+        }
+
+        .explanation li {
+            margin: 10px 0;
+        }
+
+        .highlight {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .architecture-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .arch-layer {
+            background: rgba(102,126,234,0.15);
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid rgba(102,126,234,0.4);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .arch-layer:hover {
+            transform: translateX(10px);
+            border-color: rgba(102,126,234,0.8);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.3);
+        }
+
+        .arch-layer h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .arch-layer p {
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+
+        .step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .step.active {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            transform: scale(1.2);
+            box-shadow: 0 4px 15px rgba(102,126,234,0.6);
+        }
+
+        .step-line {
+            width: 50px;
+            height: 2px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,165,0,0.1) 100%);
+            border-left: 4px solid #ffd700;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .info-box h4 {
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .entity-box, .repo-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid rgba(102,126,234,0.3);
+        }
+
+        .flow-step {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s;
+        }
+
+        .flow-step.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .speed-control {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .speed-control label {
+            color: #888;
+        }
+
+        .speed-control input[type="range"] {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">
+            <h1>Spring JPA 配置与原理可视化演示</h1>
+            <p class="subtitle">从配置到原理，全方位理解 Spring Data JPA</p>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('config')">配置使用</button>
+            <button class="tab-btn" onclick="switchTab('architecture')">架构层次</button>
+            <button class="tab-btn" onclick="switchTab('workflow')">工作流程动画</button>
+            <button class="tab-btn" onclick="switchTab('proxy')">代理机制</button>
+            <button class="tab-btn" onclick="switchTab('query')">方法名解析</button>
+            <button class="tab-btn" onclick="switchTab('transaction')">事务管理</button>
+        </div>
+
+        <!-- 配置使用 Tab -->
+        <div id="config" class="tab-content active">
+            <div class="card">
+                <h2>1. Maven 依赖配置</h2>
+                <div class="code-block" data-lang="XML">
+<pre><span class="keyword">&lt;dependencies&gt;</span>
+    <span class="comment">&lt;!-- Spring Boot Starter Data JPA --&gt;</span>
+    <span class="keyword">&lt;dependency&gt;</span>
+        <span class="keyword">&lt;groupId&gt;</span>org.springframework.boot<span class="keyword">&lt;/groupId&gt;</span>
+        <span class="keyword">&lt;artifactId&gt;</span>spring-boot-starter-data-jpa<span class="keyword">&lt;/artifactId&gt;</span>
+    <span class="keyword">&lt;/dependency&gt;</span>
+
+    <span class="comment">&lt;!-- MySQL 驱动 --&gt;</span>
+    <span class="keyword">&lt;dependency&gt;</span>
+        <span class="keyword">&lt;groupId&gt;</span>mysql<span class="keyword">&lt;/groupId&gt;</span>
+        <span class="keyword">&lt;artifactId&gt;</span>mysql-connector-java<span class="keyword">&lt;/artifactId&gt;</span>
+    <span class="keyword">&lt;/dependency&gt;</span>
+<span class="keyword">&lt;/dependencies&gt;</span></pre>
+                </div>
+
+                <h3>Gradle 配置</h3>
+                <div class="code-block" data-lang="Gradle">
+<pre><span class="keyword">dependencies</span> {
+    <span class="function">implementation</span> <span class="string">'org.springframework.boot:spring-boot-starter-data-jpa'</span>
+    <span class="function">runtimeOnly</span> <span class="string">'mysql:mysql-connector-java'</span>
+}</pre>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. Application 配置</h2>
+                <div class="code-block" data-lang="YAML">
+<pre><span class="keyword">spring:</span>
+  <span class="keyword">datasource:</span>
+    <span class="annotation">url:</span> <span class="string">jdbc:mysql://localhost:3306/testdb?useSSL=false&serverTimezone=UTC</span>
+    <span class="annotation">username:</span> <span class="string">root</span>
+    <span class="annotation">password:</span> <span class="string">password</span>
+    <span class="annotation">driver-class-name:</span> <span class="string">com.mysql.cj.jdbc.Driver</span>
+
+  <span class="keyword">jpa:</span>
+    <span class="annotation">hibernate:</span>
+      <span class="annotation">ddl-auto:</span> <span class="string">update</span>  <span class="comment"># create, create-drop, update, validate, none</span>
+    <span class="annotation">show-sql:</span> <span class="keyword">true</span>  <span class="comment"># 显示SQL语句</span>
+    <span class="annotation">properties:</span>
+      <span class="annotation">hibernate:</span>
+        <span class="annotation">format_sql:</span> <span class="keyword">true</span>  <span class="comment"># 格式化SQL</span>
+        <span class="annotation">dialect:</span> <span class="string">org.hibernate.dialect.MySQL8Dialect</span></pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>ddl-auto 配置说明</h4>
+                    <ul>
+                        <li><span class="highlight">create:</span> 每次启动删除并创建新表</li>
+                        <li><span class="highlight">create-drop:</span> 启动时创建，关闭时删除</li>
+                        <li><span class="highlight">update:</span> 更新表结构（推荐开发环境）</li>
+                        <li><span class="highlight">validate:</span> 验证表结构，不修改</li>
+                        <li><span class="highlight">none:</span> 不做任何操作（推荐生产环境）</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>3. Entity 实体类定义</h2>
+                <div class="code-block" data-lang="Java">
+<pre><span class="keyword">import</span> javax.persistence.*;
+<span class="keyword">import</span> lombok.Data;
+<span class="keyword">import</span> java.time.LocalDateTime;
+
+<span class="annotation">@Data</span>
+<span class="annotation">@Entity</span>  <span class="comment">// 标记为JPA实体</span>
+<span class="annotation">@Table</span>(name = <span class="string">"users"</span>)  <span class="comment">// 指定表名</span>
+<span class="keyword">public class</span> <span class="function">User</span> {
+
+    <span class="annotation">@Id</span>  <span class="comment">// 主键</span>
+    <span class="annotation">@GeneratedValue</span>(strategy = GenerationType.IDENTITY)  <span class="comment">// 自增策略</span>
+    <span class="keyword">private</span> Long id;
+
+    <span class="annotation">@Column</span>(name = <span class="string">"username"</span>, nullable = <span class="keyword">false</span>, unique = <span class="keyword">true</span>, length = <span class="number">50</span>)
+    <span class="keyword">private</span> String username;
+
+    <span class="annotation">@Column</span>(nullable = <span class="keyword">false</span>)
+    <span class="keyword">private</span> String password;
+
+    <span class="annotation">@Column</span>(length = <span class="number">100</span>)
+    <span class="keyword">private</span> String email;
+
+    <span class="annotation">@Column</span>(name = <span class="string">"create_time"</span>)
+    <span class="keyword">private</span> LocalDateTime createTime;
+
+    <span class="annotation">@Column</span>(name = <span class="string">"update_time"</span>)
+    <span class="keyword">private</span> LocalDateTime updateTime;
+
+    <span class="comment">// 一对多关联</span>
+    <span class="annotation">@OneToMany</span>(mappedBy = <span class="string">"user"</span>, cascade = CascadeType.ALL)
+    <span class="keyword">private</span> List&lt;Order&gt; orders;
+
+    <span class="annotation">@PrePersist</span>  <span class="comment">// 保存前自动设置创建时间</span>
+    <span class="keyword">protected void</span> <span class="function">onCreate</span>() {
+        createTime = LocalDateTime.now();
+    }
+
+    <span class="annotation">@PreUpdate</span>  <span class="comment">// 更新前自动设置更新时间</span>
+    <span class="keyword">protected void</span> <span class="function">onUpdate</span>() {
+        updateTime = LocalDateTime.now();
+    }
+}</pre>
+                </div>
+
+                <h3>常用注解说明</h3>
+                <div class="grid-2">
+                    <div class="entity-box">
+                        <h4 style="color: #667eea;">类级别注解</h4>
+                        <ul>
+                            <li><span class="highlight">@Entity:</span> 标记为JPA实体</li>
+                            <li><span class="highlight">@Table:</span> 指定表名和索引</li>
+                            <li><span class="highlight">@EntityListeners:</span> 实体监听器</li>
+                        </ul>
+                    </div>
+                    <div class="entity-box">
+                        <h4 style="color: #667eea;">字段级别注解</h4>
+                        <ul>
+                            <li><span class="highlight">@Id:</span> 主键标识</li>
+                            <li><span class="highlight">@GeneratedValue:</span> 主键生成策略</li>
+                            <li><span class="highlight">@Column:</span> 列定义</li>
+                            <li><span class="highlight">@Transient:</span> 不持久化</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>4. Repository 接口定义</h2>
+                <div class="code-block" data-lang="Java">
+<pre><span class="keyword">import</span> org.springframework.data.jpa.repository.*;
+<span class="keyword">import</span> org.springframework.data.repository.query.Param;
+<span class="keyword">import</span> java.util.List;
+
+<span class="keyword">public interface</span> <span class="function">UserRepository</span> <span class="keyword">extends</span> JpaRepository&lt;User, Long&gt; {
+
+    <span class="comment">// 1. 方法名查询（自动解析）</span>
+    User <span class="function">findByUsername</span>(String username);
+
+    List&lt;User&gt; <span class="function">findByEmailContaining</span>(String email);
+
+    List&lt;User&gt; <span class="function">findByCreateTimeBetween</span>(LocalDateTime start, LocalDateTime end);
+
+    <span class="comment">// 2. @Query JPQL查询</span>
+    <span class="annotation">@Query</span>(<span class="string">"SELECT u FROM User u WHERE u.username = :username"</span>)
+    User <span class="function">findUserByUsername</span>(<span class="annotation">@Param</span>(<span class="string">"username"</span>) String username);
+
+    <span class="comment">// 3. 原生SQL查询</span>
+    <span class="annotation">@Query</span>(value = <span class="string">"SELECT * FROM users WHERE email = ?1"</span>, nativeQuery = <span class="keyword">true</span>)
+    User <span class="function">findByEmailNative</span>(String email);
+
+    <span class="comment">// 4. 更新操作</span>
+    <span class="annotation">@Modifying</span>
+    <span class="annotation">@Query</span>(<span class="string">"UPDATE User u SET u.email = :email WHERE u.id = :id"</span>)
+    <span class="keyword">int</span> <span class="function">updateEmail</span>(<span class="annotation">@Param</span>(<span class="string">"id"</span>) Long id, <span class="annotation">@Param</span>(<span class="string">"email"</span>) String email);
+
+    <span class="comment">// 5. 分页查询</span>
+    Page&lt;User&gt; <span class="function">findByEmailContaining</span>(String email, Pageable pageable);
+}</pre>
+                </div>
+
+                <div class="info-box">
+                    <h4>Repository 接口层次</h4>
+                    <ul>
+                        <li><span class="highlight">Repository:</span> 标记接口，无方法</li>
+                        <li><span class="highlight">CrudRepository:</span> 基本CRUD操作</li>
+                        <li><span class="highlight">PagingAndSortingRepository:</span> 添加分页和排序</li>
+                        <li><span class="highlight">JpaRepository:</span> 添加JPA特有功能（批量操作等）</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>5. Service 层使用</h2>
+                <div class="code-block" data-lang="Java">
+<pre><span class="keyword">import</span> org.springframework.stereotype.Service;
+<span class="keyword">import</span> org.springframework.transaction.annotation.Transactional;
+<span class="keyword">import</span> lombok.RequiredArgsConstructor;
+
+<span class="annotation">@Service</span>
+<span class="annotation">@RequiredArgsConstructor</span>  <span class="comment">// Lombok生成构造器注入</span>
+<span class="keyword">public class</span> <span class="function">UserService</span> {
+
+    <span class="keyword">private final</span> UserRepository userRepository;
+
+    <span class="comment">// 查询操作</span>
+    <span class="keyword">public</span> User <span class="function">getUserById</span>(Long id) {
+        <span class="keyword">return</span> userRepository.findById(id)
+            .orElseThrow(() -&gt; <span class="keyword">new</span> RuntimeException(<span class="string">"User not found"</span>));
+    }
+
+    <span class="comment">// 保存操作（带事务）</span>
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public</span> User <span class="function">createUser</span>(User user) {
+        <span class="keyword">return</span> userRepository.save(user);
+    }
+
+    <span class="comment">// 更新操作</span>
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public</span> User <span class="function">updateUser</span>(Long id, User userDetails) {
+        User user = getUserById(id);
+        user.setUsername(userDetails.getUsername());
+        user.setEmail(userDetails.getEmail());
+        <span class="keyword">return</span> userRepository.save(user);
+    }
+
+    <span class="comment">// 删除操作</span>
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public void</span> <span class="function">deleteUser</span>(Long id) {
+        userRepository.deleteById(id);
+    }
+
+    <span class="comment">// 分页查询</span>
+    <span class="keyword">public</span> Page&lt;User&gt; <span class="function">getUsersByEmail</span>(String email, <span class="keyword">int</span> page, <span class="keyword">int</span> size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(<span class="string">"createTime"</span>).descending());
+        <span class="keyword">return</span> userRepository.findByEmailContaining(email, pageable);
+    }
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- 架构层次 Tab -->
+        <div id="architecture" class="tab-content">
+            <div class="card">
+                <h2>Spring Data JPA 架构层次</h2>
+                <div class="architecture-diagram">
+                    <div class="arch-layer" style="background: rgba(255,79,79,0.15); border-color: rgba(255,79,79,0.4);">
+                        <h4>应用层 (Application Layer)</h4>
+                        <p><strong>Controller / Service</strong> - 业务逻辑层，调用Repository接口完成数据操作</p>
+                    </div>
+                    <div style="text-align: center; color: #667eea; font-size: 2em;">↓</div>
+
+                    <div class="arch-layer" style="background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.4);">
+                        <h4>Spring Data JPA 层</h4>
+                        <p><strong>Repository 接口代理</strong> - Spring动态生成实现类，解析方法名或@Query注解</p>
+                        <p style="margin-top: 10px;">核心组件：SimpleJpaRepository（默认实现）、RepositoryFactorySupport、QueryLookupStrategy</p>
+                    </div>
+                    <div style="text-align: center; color: #667eea; font-size: 2em;">↓</div>
+
+                    <div class="arch-layer" style="background: rgba(255,215,0,0.15); border-color: rgba(255,215,0,0.4);">
+                        <h4>JPA 规范层 (API)</h4>
+                        <p><strong>EntityManager / EntityManagerFactory</strong> - JPA标准API，定义持久化操作规范</p>
+                        <p style="margin-top: 10px;">核心接口：EntityManager.persist(), find(), merge(), remove()</p>
+                    </div>
+                    <div style="text-align: center; color: #667eea; font-size: 2em;">↓</div>
+
+                    <div class="arch-layer" style="background: rgba(80,250,123,0.15); border-color: rgba(80,250,123,0.4);">
+                        <h4>Hibernate 实现层</h4>
+                        <p><strong>SessionFactory / Session</strong> - JPA规范的Hibernate实现</p>
+                        <p style="margin-top: 10px;">功能：对象关系映射（ORM）、SQL生成、缓存管理、延迟加载</p>
+                    </div>
+                    <div style="text-align: center; color: #667eea; font-size: 2em;">↓</div>
+
+                    <div class="arch-layer" style="background: rgba(139,233,253,0.15); border-color: rgba(139,233,253,0.4);">
+                        <h4>JDBC 层</h4>
+                        <p><strong>DataSource / Connection</strong> - 数据库连接管理，执行原生SQL</p>
+                        <p style="margin-top: 10px;">HikariCP连接池、PreparedStatement执行SQL</p>
+                    </div>
+                    <div style="text-align: center; color: #667eea; font-size: 2em;">↓</div>
+
+                    <div class="arch-layer" style="background: rgba(189,147,249,0.15); border-color: rgba(189,147,249,0.4);">
+                        <h4>数据库层 (Database)</h4>
+                        <p><strong>MySQL / PostgreSQL / Oracle</strong> - 实际的数据存储</p>
+                    </div>
+                </div>
+
+                <div class="explanation">
+                    <h3>层次关系说明</h3>
+                    <ul>
+                        <li><span class="highlight">JPA 是规范：</span>定义了接口标准（javax.persistence包），不是实现</li>
+                        <li><span class="highlight">Hibernate 是实现：</span>JPA规范最流行的实现框架</li>
+                        <li><span class="highlight">Spring Data JPA：</span>在JPA之上的封装，简化Repository开发</li>
+                        <li><span class="highlight">依赖关系：</span>Spring Data JPA → JPA API → Hibernate → JDBC → Database</li>
+                        <li><span class="highlight">可替换性：</span>可以将Hibernate替换为EclipseLink等其他JPA实现</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>核心组件关系图</h2>
+                <svg width="100%" height="400" style="background: rgba(0,0,0,0.2); border-radius: 10px;">
+                    <!-- Repository接口 -->
+                    <rect x="50" y="50" width="200" height="80" fill="rgba(102,126,234,0.3)" stroke="#667eea" stroke-width="2" rx="8"/>
+                    <text x="150" y="85" text-anchor="middle" fill="#667eea" font-size="16" font-weight="bold">UserRepository</text>
+                    <text x="150" y="105" text-anchor="middle" fill="#ccc" font-size="12">(接口)</text>
+
+                    <!-- SimpleJpaRepository -->
+                    <rect x="50" y="180" width="200" height="80" fill="rgba(80,250,123,0.3)" stroke="#50fa7b" stroke-width="2" rx="8"/>
+                    <text x="150" y="215" text-anchor="middle" fill="#50fa7b" font-size="16" font-weight="bold">SimpleJpaRepository</text>
+                    <text x="150" y="235" text-anchor="middle" fill="#ccc" font-size="12">(默认实现)</text>
+
+                    <!-- EntityManager -->
+                    <rect x="320" y="180" width="200" height="80" fill="rgba(255,215,0,0.3)" stroke="#ffd700" stroke-width="2" rx="8"/>
+                    <text x="420" y="215" text-anchor="middle" fill="#ffd700" font-size="16" font-weight="bold">EntityManager</text>
+                    <text x="420" y="235" text-anchor="middle" fill="#ccc" font-size="12">(JPA API)</text>
+
+                    <!-- Hibernate Session -->
+                    <rect x="320" y="310" width="200" height="80" fill="rgba(189,147,249,0.3)" stroke="#bd93f9" stroke-width="2" rx="8"/>
+                    <text x="420" y="345" text-anchor="middle" fill="#bd93f9" font-size="16" font-weight="bold">Hibernate Session</text>
+                    <text x="420" y="365" text-anchor="middle" fill="#ccc" font-size="12">(ORM实现)</text>
+
+                    <!-- 箭头 -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#667eea"/>
+                        </marker>
+                    </defs>
+
+                    <line x1="150" y1="130" x2="150" y2="175" stroke="#667eea" stroke-width="2" marker-end="url(#arrowhead)"/>
+                    <text x="160" y="155" fill="#888" font-size="12">动态代理</text>
+
+                    <line x1="250" y1="220" x2="315" y2="220" stroke="#667eea" stroke-width="2" marker-end="url(#arrowhead)"/>
+                    <text x="260" y="210" fill="#888" font-size="12">依赖</text>
+
+                    <line x1="420" y1="260" x2="420" y2="305" stroke="#667eea" stroke-width="2" marker-end="url(#arrowhead)"/>
+                    <text x="430" y="285" fill="#888" font-size="12">适配</text>
+
+                    <!-- 代理工厂 -->
+                    <rect x="320" y="50" width="200" height="80" fill="rgba(255,121,198,0.3)" stroke="#ff79c6" stroke-width="2" rx="8"/>
+                    <text x="420" y="85" text-anchor="middle" fill="#ff79c6" font-size="16" font-weight="bold">RepositoryFactory</text>
+                    <text x="420" y="105" text-anchor="middle" fill="#ccc" font-size="12">(代理工厂)</text>
+
+                    <line x1="250" y1="90" x2="315" y2="90" stroke="#ff79c6" stroke-width="2" marker-end="url(#arrowhead)"/>
+                    <text x="260" y="80" fill="#888" font-size="12">创建</text>
+
+                    <line x1="420" y1="130" x2="420" y2="175" stroke="#ff79c6" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5,5"/>
+                    <text x="430" y="155" fill="#888" font-size="12">使用</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 工作流程动画 Tab -->
+        <div id="workflow" class="tab-content">
+            <div class="card">
+                <h2>Repository 调用到 SQL 执行完整流程</h2>
+
+                <div class="step-indicator" id="stepIndicator">
+                    <div class="step" data-step="0">1</div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="1">2</div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="2">3</div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="3">4</div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="4">5</div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="5">6</div>
+                </div>
+
+                <div class="animation-area">
+                    <canvas id="workflowCanvas" width="1200" height="500"></canvas>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startWorkflow()">开始演示</button>
+                    <button class="btn btn-secondary" onclick="pauseWorkflow()">暂停</button>
+                    <button class="btn btn-secondary" onclick="resetWorkflow()">重置</button>
+                    <button class="btn" onclick="stepWorkflow()">单步执行</button>
+                </div>
+
+                <div class="speed-control">
+                    <label>动画速度:</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="5" oninput="updateSpeed(this.value)">
+                    <span id="speedValue">1.0x</span>
+                </div>
+
+                <div class="explanation">
+                    <h3>流程步骤详解</h3>
+                    <ol>
+                        <li>
+                            <span class="highlight">步骤1 - Service调用Repository方法：</span>
+                            <code>userRepository.findByUsername("john")</code>
+                            <br>Service层通过依赖注入获取到的Repository接口实例（实际是代理对象）
+                        </li>
+                        <li>
+                            <span class="highlight">步骤2 - JDK动态代理拦截：</span>
+                            Spring通过JDK动态代理（或CGLIB）拦截方法调用，代理对象并非真实的Repository实现
+                        </li>
+                        <li>
+                            <span class="highlight">步骤3 - 方法名解析：</span>
+                            QueryLookupStrategy解析方法名"findByUsername"，识别查询类型（查找）和条件（username字段）
+                        </li>
+                        <li>
+                            <span class="highlight">步骤4 - 生成JPQL/HQL查询：</span>
+                            根据解析结果生成JPQL：<code>SELECT u FROM User u WHERE u.username = ?1</code>
+                        </li>
+                        <li>
+                            <span class="highlight">步骤5 - Hibernate翻译为SQL：</span>
+                            Hibernate将JPQL翻译成数据库特定的SQL：<code>SELECT * FROM users WHERE username = ?</code>
+                        </li>
+                        <li>
+                            <span class="highlight">步骤6 - JDBC执行并返回结果：</span>
+                            通过JDBC执行SQL，获取ResultSet，Hibernate映射为Entity对象返回
+                        </li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- 代理机制 Tab -->
+        <div id="proxy" class="tab-content">
+            <div class="card">
+                <h2>Repository 代理机制原理</h2>
+
+                <div class="animation-area">
+                    <canvas id="proxyCanvas" width="1200" height="450"></canvas>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startProxy()">开始演示</button>
+                    <button class="btn btn-secondary" onclick="resetProxy()">重置</button>
+                </div>
+
+                <div class="explanation">
+                    <h3>代理创建过程</h3>
+                    <ol>
+                        <li>
+                            <span class="highlight">1. Spring容器启动扫描：</span>
+                            @EnableJpaRepositories注解触发，扫描所有继承Repository的接口
+                        </li>
+                        <li>
+                            <span class="highlight">2. RepositoryFactorySupport创建代理：</span>
+                            <div class="code-block" data-lang="Java" style="margin-top: 10px;">
+<pre><span class="keyword">public class</span> <span class="function">JpaRepositoryFactory</span> <span class="keyword">extends</span> RepositoryFactorySupport {
+    <span class="keyword">protected</span> Object <span class="function">getTargetRepository</span>(RepositoryInformation info) {
+        <span class="comment">// 创建SimpleJpaRepository实例作为目标对象</span>
+        <span class="keyword">return new</span> SimpleJpaRepository&lt;&gt;(entityInfo, entityManager);
+    }
+
+    <span class="keyword">protected</span> Class&lt;?&gt; <span class="function">getRepositoryBaseClass</span>(RepositoryMetadata metadata) {
+        <span class="keyword">return</span> SimpleJpaRepository.<span class="keyword">class</span>;
+    }
+}</pre>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="highlight">3. JDK动态代理生成实现类：</span>
+                            <div class="code-block" data-lang="Java" style="margin-top: 10px;">
+<pre><span class="comment">// Spring内部使用类似逻辑</span>
+Object proxy = Proxy.newProxyInstance(
+    classLoader,
+    <span class="keyword">new</span> Class[] { UserRepository.<span class="keyword">class</span> },
+    <span class="keyword">new</span> InvocationHandler() {
+        <span class="keyword">public</span> Object <span class="function">invoke</span>(Object proxy, Method method, Object[] args) {
+            <span class="comment">// 1. 判断方法类型（CRUD、自定义查询、@Query）</span>
+            <span class="keyword">if</span> (isCrudMethod(method)) {
+                <span class="keyword">return</span> simpleJpaRepository.invoke(method, args);
+            }
+            <span class="comment">// 2. 解析方法名查询</span>
+            <span class="keyword">if</span> (isQueryMethod(method)) {
+                Query query = parseMethodName(method);
+                <span class="keyword">return</span> query.execute(args);
+            }
+            <span class="comment">// 3. 处理@Query注解</span>
+            <span class="keyword">if</span> (hasQueryAnnotation(method)) {
+                <span class="keyword">return</span> executeQueryAnnotation(method, args);
+            }
+        }
+    }
+);</pre>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="highlight">4. 注册到Spring容器：</span>
+                            代理对象以Bean的形式注册到Spring容器，可通过@Autowired注入
+                        </li>
+                    </ol>
+
+                    <h3 style="margin-top: 30px;">SimpleJpaRepository 默认实现</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="annotation">@Repository</span>
+<span class="annotation">@Transactional</span>(readOnly = <span class="keyword">true</span>)
+<span class="keyword">public class</span> <span class="function">SimpleJpaRepository</span>&lt;T, ID&gt; <span class="keyword">implements</span> JpaRepository&lt;T, ID&gt; {
+
+    <span class="keyword">private final</span> EntityManager em;
+    <span class="keyword">private final</span> JpaEntityInformation&lt;T, ?&gt; entityInformation;
+
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public</span> &lt;S <span class="keyword">extends</span> T&gt; S <span class="function">save</span>(S entity) {
+        <span class="keyword">if</span> (entityInformation.isNew(entity)) {
+            em.persist(entity);  <span class="comment">// 新实体：插入</span>
+            <span class="keyword">return</span> entity;
+        } <span class="keyword">else</span> {
+            <span class="keyword">return</span> em.merge(entity);  <span class="comment">// 已存在：更新</span>
+        }
+    }
+
+    <span class="keyword">public</span> Optional&lt;T&gt; <span class="function">findById</span>(ID id) {
+        <span class="keyword">return</span> Optional.ofNullable(em.find(entityInformation.getJavaType(), id));
+    }
+
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public void</span> <span class="function">delete</span>(T entity) {
+        em.remove(em.contains(entity) ? entity : em.merge(entity));
+    }
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 方法名解析 Tab -->
+        <div id="query" class="tab-content">
+            <div class="card">
+                <h2>方法名解析查询原理</h2>
+
+                <div class="animation-area">
+                    <canvas id="queryCanvas" width="1200" height="450"></canvas>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startQuery()">开始演示</button>
+                    <button class="btn btn-secondary" onclick="resetQuery()">重置</button>
+                </div>
+
+                <div class="explanation">
+                    <h3>方法名解析规则</h3>
+
+                    <div class="info-box">
+                        <h4>解析器：PartTree 类</h4>
+                        <p>Spring Data JPA使用PartTree类解析方法名，将其拆分为查询主语（Subject）和谓词（Predicate）</p>
+                    </div>
+
+                    <h3>方法名组成结构</h3>
+                    <div class="code-block" data-lang="Text">
+<pre><span class="highlight">查询主语</span> + <span class="highlight">By</span> + <span class="highlight">条件属性</span> + <span class="highlight">条件关键字</span> + <span class="highlight">连接词</span> + <span class="highlight">排序</span>
+
+示例：<span class="function">findDistinctUserByUsernameAndEmailOrderByCreateTimeDesc</span>
+
+拆解：
+- <span class="highlight">find</span>: 查询主语（返回类型）
+- <span class="highlight">Distinct</span>: 去重
+- <span class="highlight">User</span>: 可选的实体名称
+- <span class="highlight">By</span>: 分隔符
+- <span class="highlight">Username</span>: 第一个条件属性
+- <span class="highlight">And</span>: 连接词
+- <span class="highlight">Email</span>: 第二个条件属性
+- <span class="highlight">OrderBy</span>: 排序关键字
+- <span class="highlight">CreateTime</span>: 排序字段
+- <span class="highlight">Desc</span>: 降序</pre>
+                    </div>
+
+                    <h3>支持的查询关键字</h3>
+                    <div class="grid-2">
+                        <div class="entity-box">
+                            <h4 style="color: #667eea;">查询主语</h4>
+                            <ul>
+                                <li><span class="highlight">find...By / read...By / get...By / query...By:</span> 查询</li>
+                                <li><span class="highlight">count...By:</span> 统计数量</li>
+                                <li><span class="highlight">exists...By:</span> 判断是否存在</li>
+                                <li><span class="highlight">delete...By / remove...By:</span> 删除</li>
+                            </ul>
+                        </div>
+                        <div class="entity-box">
+                            <h4 style="color: #667eea;">条件关键字</h4>
+                            <ul>
+                                <li><span class="highlight">And / Or:</span> 逻辑连接</li>
+                                <li><span class="highlight">Is / Equals:</span> 相等</li>
+                                <li><span class="highlight">Between:</span> 区间</li>
+                                <li><span class="highlight">LessThan / GreaterThan:</span> 大小比较</li>
+                                <li><span class="highlight">Like / NotLike:</span> 模糊查询</li>
+                                <li><span class="highlight">StartingWith / EndingWith / Containing:</span> 字符串匹配</li>
+                                <li><span class="highlight">In / NotIn:</span> 集合包含</li>
+                                <li><span class="highlight">IsNull / IsNotNull:</span> 空值判断</li>
+                                <li><span class="highlight">True / False:</span> 布尔值</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 30px;">方法名示例</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="comment">// 1. 简单查询</span>
+User <span class="function">findByUsername</span>(String username);
+<span class="comment">→ SELECT u FROM User u WHERE u.username = ?1</span>
+
+<span class="comment">// 2. 多条件AND</span>
+List&lt;User&gt; <span class="function">findByUsernameAndEmail</span>(String username, String email);
+<span class="comment">→ SELECT u FROM User u WHERE u.username = ?1 AND u.email = ?2</span>
+
+<span class="comment">// 3. 模糊查询</span>
+List&lt;User&gt; <span class="function">findByUsernameLike</span>(String pattern);
+<span class="comment">→ SELECT u FROM User u WHERE u.username LIKE ?1</span>
+
+<span class="comment">// 4. 区间查询</span>
+List&lt;User&gt; <span class="function">findByCreateTimeBetween</span>(LocalDateTime start, LocalDateTime end);
+<span class="comment">→ SELECT u FROM User u WHERE u.createTime BETWEEN ?1 AND ?2</span>
+
+<span class="comment">// 5. 排序</span>
+List&lt;User&gt; <span class="function">findByEmailOrderByCreateTimeDesc</span>(String email);
+<span class="comment">→ SELECT u FROM User u WHERE u.email = ?1 ORDER BY u.createTime DESC</span>
+
+<span class="comment">// 6. 统计</span>
+<span class="keyword">long</span> <span class="function">countByEmail</span>(String email);
+<span class="comment">→ SELECT COUNT(u) FROM User u WHERE u.email = ?1</span>
+
+<span class="comment">// 7. 删除</span>
+<span class="keyword">long</span> <span class="function">deleteByUsername</span>(String username);
+<span class="comment">→ DELETE FROM User u WHERE u.username = ?1</span>
+
+<span class="comment">// 8. IN查询</span>
+List&lt;User&gt; <span class="function">findByIdIn</span>(List&lt;Long&gt; ids);
+<span class="comment">→ SELECT u FROM User u WHERE u.id IN ?1</span>
+
+<span class="comment">// 9. 关联查询</span>
+List&lt;Order&gt; <span class="function">findByUser_Username</span>(String username);
+<span class="comment">→ SELECT o FROM Order o WHERE o.user.username = ?1</span></pre>
+                    </div>
+
+                    <h3>解析流程源码</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="keyword">public class</span> <span class="function">PartTree</span> {
+    <span class="keyword">public</span> <span class="function">PartTree</span>(String source, Class&lt;?&gt; domainClass) {
+        <span class="comment">// 1. 按"By"分割方法名</span>
+        Matcher matcher = PREFIX_TEMPLATE.matcher(source);
+        <span class="keyword">if</span> (!matcher.find()) {
+            <span class="keyword">throw new</span> IllegalArgumentException(<span class="string">"Invalid method name"</span>);
+        }
+
+        <span class="comment">// 2. 解析查询主语（find、count、delete等）</span>
+        <span class="keyword">this</span>.subject = <span class="keyword">new</span> Subject(matcher.group(<span class="number">0</span>));
+
+        <span class="comment">// 3. 解析谓词条件</span>
+        <span class="keyword">this</span>.predicate = <span class="keyword">new</span> Predicate(source.substring(matcher.end()), domainClass);
+    }
+
+    <span class="comment">// 将解析结果转换为JPQL查询</span>
+    <span class="keyword">public</span> Query <span class="function">createQuery</span>(EntityManager em) {
+        StringBuilder jpql = <span class="keyword">new</span> StringBuilder(<span class="string">"SELECT "</span>);
+        jpql.append(subject.isDistinct() ? <span class="string">"DISTINCT "</span> : <span class="string">""</span>);
+        jpql.append(<span class="string">"e FROM "</span>).append(domainClass.getSimpleName()).append(<span class="string">" e"</span>);
+
+        <span class="keyword">if</span> (predicate.hasConditions()) {
+            jpql.append(<span class="string">" WHERE "</span>).append(predicate.toJpql());
+        }
+
+        <span class="keyword">return</span> em.createQuery(jpql.toString());
+    }
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 事务管理 Tab -->
+        <div id="transaction" class="tab-content">
+            <div class="card">
+                <h2>Spring JPA 事务管理机制</h2>
+
+                <div class="animation-area">
+                    <canvas id="transactionCanvas" width="1200" height="450"></canvas>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startTransaction()">开始演示</button>
+                    <button class="btn btn-secondary" onclick="resetTransaction()">重置</button>
+                </div>
+
+                <div class="explanation">
+                    <h3>事务传播机制</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="annotation">@Transactional</span>(propagation = Propagation.REQUIRED)
+<span class="keyword">public void</span> <span class="function">method</span>() {
+    <span class="comment">// 事务行为取决于传播级别</span>
+}</pre>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="entity-box">
+                            <h4 style="color: #667eea;">常用传播级别</h4>
+                            <ul>
+                                <li><span class="highlight">REQUIRED（默认）:</span> 有事务则加入，无则新建</li>
+                                <li><span class="highlight">REQUIRES_NEW:</span> 总是新建事务，挂起当前事务</li>
+                                <li><span class="highlight">SUPPORTS:</span> 有事务则加入，无则非事务执行</li>
+                                <li><span class="highlight">NOT_SUPPORTED:</span> 非事务执行，挂起当前事务</li>
+                                <li><span class="highlight">MANDATORY:</span> 必须在事务中，否则抛异常</li>
+                                <li><span class="highlight">NEVER:</span> 不能在事务中，否则抛异常</li>
+                                <li><span class="highlight">NESTED:</span> 嵌套事务（需数据库支持）</li>
+                            </ul>
+                        </div>
+                        <div class="entity-box">
+                            <h4 style="color: #667eea;">隔离级别</h4>
+                            <ul>
+                                <li><span class="highlight">DEFAULT:</span> 使用数据库默认级别</li>
+                                <li><span class="highlight">READ_UNCOMMITTED:</span> 读未提交</li>
+                                <li><span class="highlight">READ_COMMITTED:</span> 读已提交</li>
+                                <li><span class="highlight">REPEATABLE_READ:</span> 可重复读</li>
+                                <li><span class="highlight">SERIALIZABLE:</span> 串行化</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 30px;">事务注解详解</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="annotation">@Transactional</span>(
+    propagation = Propagation.REQUIRED,        <span class="comment">// 传播行为</span>
+    isolation = Isolation.DEFAULT,              <span class="comment">// 隔离级别</span>
+    timeout = <span class="number">30</span>,                                 <span class="comment">// 超时时间（秒）</span>
+    readOnly = <span class="keyword">false</span>,                           <span class="comment">// 只读事务</span>
+    rollbackFor = Exception.<span class="keyword">class</span>,              <span class="comment">// 回滚异常类型</span>
+    noRollbackFor = IllegalArgumentException.<span class="keyword">class</span>  <span class="comment">// 不回滚的异常</span>
+)
+<span class="keyword">public void</span> <span class="function">complexOperation</span>() {
+    <span class="comment">// 业务逻辑</span>
+}</pre>
+                    </div>
+
+                    <h3>SimpleJpaRepository 的事务配置</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="annotation">@Repository</span>
+<span class="annotation">@Transactional</span>(readOnly = <span class="keyword">true</span>)  <span class="comment">// 类级别：所有方法默认只读</span>
+<span class="keyword">public class</span> <span class="function">SimpleJpaRepository</span>&lt;T, ID&gt; {
+
+    <span class="comment">// 查询方法继承类级别的只读事务</span>
+    <span class="keyword">public</span> Optional&lt;T&gt; <span class="function">findById</span>(ID id) {
+        <span class="keyword">return</span> Optional.ofNullable(em.find(entityClass, id));
+    }
+
+    <span class="comment">// 写操作覆盖为读写事务</span>
+    <span class="annotation">@Transactional</span>  <span class="comment">// readOnly = false</span>
+    <span class="keyword">public</span> &lt;S <span class="keyword">extends</span> T&gt; S <span class="function">save</span>(S entity) {
+        <span class="keyword">if</span> (isNew(entity)) {
+            em.persist(entity);
+            <span class="keyword">return</span> entity;
+        } <span class="keyword">else</span> {
+            <span class="keyword">return</span> em.merge(entity);
+        }
+    }
+
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">public void</span> <span class="function">delete</span>(T entity) {
+        em.remove(em.contains(entity) ? entity : em.merge(entity));
+    }
+}</pre>
+                    </div>
+
+                    <h3 style="margin-top: 30px;">事务实现原理</h3>
+                    <div class="info-box">
+                        <h4>AOP代理机制</h4>
+                        <p>Spring使用AOP（面向切面编程）实现声明式事务管理：</p>
+                        <ol>
+                            <li>为带@Transactional的类创建代理对象</li>
+                            <li>调用方法时，代理拦截器先开启事务</li>
+                            <li>执行目标方法</li>
+                            <li>方法正常结束则提交事务，抛异常则回滚</li>
+                        </ol>
+                    </div>
+
+                    <div class="code-block" data-lang="Java">
+<pre><span class="comment">// Spring内部事务拦截器伪代码</span>
+<span class="keyword">public class</span> <span class="function">TransactionInterceptor</span> {
+    <span class="keyword">public</span> Object <span class="function">invoke</span>(MethodInvocation invocation) {
+        TransactionInfo txInfo = createTransactionIfNecessary();
+        Object retVal = <span class="keyword">null</span>;
+        <span class="keyword">try</span> {
+            <span class="comment">// 执行目标方法</span>
+            retVal = invocation.proceed();
+            <span class="comment">// 提交事务</span>
+            commitTransactionAfterReturning(txInfo);
+        } <span class="keyword">catch</span> (Throwable ex) {
+            <span class="comment">// 回滚事务</span>
+            completeTransactionAfterThrowing(txInfo, ex);
+            <span class="keyword">throw</span> ex;
+        } <span class="keyword">finally</span> {
+            cleanupTransactionInfo(txInfo);
+        }
+        <span class="keyword">return</span> retVal;
+    }
+}</pre>
+                    </div>
+
+                    <h3 style="margin-top: 30px;">常见事务失效场景</h3>
+                    <div class="entity-box" style="border-color: rgba(255,79,79,0.4);">
+                        <h4 style="color: #ff4f4f;">注意避免</h4>
+                        <ul>
+                            <li><span class="highlight">同类内部调用：</span>方法A调用同类的方法B，B的@Transactional失效（没走代理）</li>
+                            <li><span class="highlight">方法非public：</span>@Transactional只对public方法有效</li>
+                            <li><span class="highlight">异常被捕获：</span>异常被catch住未抛出，事务不会回滚</li>
+                            <li><span class="highlight">异常类型不匹配：</span>默认只回滚RuntimeException，检查异常不回滚</li>
+                            <li><span class="highlight">数据库不支持：</span>MyISAM引擎不支持事务，需使用InnoDB</li>
+                        </ul>
+                    </div>
+
+                    <h3 style="margin-top: 30px;">正确使用示例</h3>
+                    <div class="code-block" data-lang="Java">
+<pre><span class="annotation">@Service</span>
+<span class="keyword">public class</span> <span class="function">UserService</span> {
+
+    <span class="annotation">@Autowired</span>
+    <span class="keyword">private</span> UserRepository userRepository;
+
+    <span class="annotation">@Autowired</span>
+    <span class="keyword">private</span> OrderRepository orderRepository;
+
+    <span class="comment">// 正确：在Service层使用@Transactional</span>
+    <span class="annotation">@Transactional</span>(rollbackFor = Exception.<span class="keyword">class</span>)
+    <span class="keyword">public void</span> <span class="function">createUserWithOrder</span>(User user, Order order) {
+        userRepository.save(user);  <span class="comment">// Repository自带的事务会加入当前事务</span>
+        order.setUser(user);
+        orderRepository.save(order);
+
+        <span class="comment">// 任何异常都会导致整体回滚</span>
+        <span class="keyword">if</span> (someCondition) {
+            <span class="keyword">throw new</span> BusinessException(<span class="string">"回滚事务"</span>);
+        }
+    }
+
+    <span class="comment">// 错误示例：内部调用不走代理</span>
+    <span class="keyword">public void</span> <span class="function">publicMethod</span>() {
+        <span class="keyword">this</span>.transactionalMethod();  <span class="comment">// 事务失效！</span>
+    }
+
+    <span class="annotation">@Transactional</span>
+    <span class="keyword">private void</span> <span class="function">transactionalMethod</span>() {
+        <span class="comment">// 不会在事务中执行</span>
+    }
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 全局状态 ====================
+        let currentTab = 'config';
+        let animationSpeed = 1.0;
+
+        // ==================== Tab切换 ====================
+        function switchTab(tabName) {
+            // 隐藏所有tab
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            currentTab = tabName;
+
+            // 重置对应动画
+            if (tabName === 'workflow') resetWorkflow();
+            if (tabName === 'proxy') resetProxy();
+            if (tabName === 'query') resetQuery();
+            if (tabName === 'transaction') resetTransaction();
+        }
+
+        // ==================== 速度控制 ====================
+        function updateSpeed(value) {
+            animationSpeed = value / 5;
+            document.getElementById('speedValue').textContent = animationSpeed.toFixed(1) + 'x';
+        }
+
+        // ==================== 工作流程动画 ====================
+        let workflowState = {
+            canvas: null,
+            ctx: null,
+            isRunning: false,
+            currentStep: 0,
+            animationFrame: 0,
+            steps: [
+                { name: 'Service调用', y: 80, color: '#ff4f4f', code: 'userRepository.findByUsername("john")' },
+                { name: '代理拦截', y: 140, color: '#667eea', code: 'JDK Dynamic Proxy' },
+                { name: '方法名解析', y: 200, color: '#ffd700', code: 'QueryLookupStrategy.parse()' },
+                { name: '生成JPQL', y: 260, color: '#50fa7b', code: 'SELECT u FROM User u WHERE...' },
+                { name: 'Hibernate翻译', y: 320, color: '#bd93f9', code: 'SELECT * FROM users WHERE...' },
+                { name: 'JDBC执行', y: 380, color: '#8be9fd', code: 'PreparedStatement.executeQuery()' }
+            ],
+            dataFlow: { x: 100, y: 80, active: false }
+        };
+
+        function initWorkflow() {
+            workflowState.canvas = document.getElementById('workflowCanvas');
+            if (!workflowState.canvas) return;
+            workflowState.ctx = workflowState.canvas.getContext('2d');
+        }
+
+        function drawWorkflow() {
+            const ctx = workflowState.ctx;
+            const canvas = workflowState.canvas;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制层级框
+            workflowState.steps.forEach((step, index) => {
+                const isActive = index === workflowState.currentStep;
+                const isPassed = index < workflowState.currentStep;
+
+                // 层级框
+                ctx.fillStyle = isPassed ? 'rgba(80,250,123,0.2)' : isActive ? step.color + '40' : 'rgba(255,255,255,0.05)';
+                ctx.fillRect(50, step.y, 500, 50);
+
+                ctx.strokeStyle = isActive ? step.color : isPassed ? '#50fa7b' : 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = isActive ? 3 : 2;
+                ctx.strokeRect(50, step.y, 500, 50);
+
+                // 步骤名称
+                ctx.fillStyle = isActive ? step.color : isPassed ? '#50fa7b' : '#888';
+                ctx.font = 'bold 18px Arial';
+                ctx.fillText(`${index + 1}. ${step.name}`, 70, step.y + 30);
+
+                // 代码
+                ctx.fillStyle = '#ccc';
+                ctx.font = '14px Consolas';
+                ctx.fillText(step.code, 600, step.y + 30);
+
+                // 箭头
+                if (index < workflowState.steps.length - 1) {
+                    ctx.strokeStyle = isPassed || (isActive && workflowState.animationFrame > 30) ? '#667eea' : 'rgba(255,255,255,0.2)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(300, step.y + 50);
+                    ctx.lineTo(300, workflowState.steps[index + 1].y);
+                    ctx.stroke();
+
+                    // 箭头头部
+                    if (isPassed || (isActive && workflowState.animationFrame > 30)) {
+                        ctx.fillStyle = '#667eea';
+                        ctx.beginPath();
+                        ctx.moveTo(300, workflowState.steps[index + 1].y);
+                        ctx.lineTo(290, workflowState.steps[index + 1].y - 10);
+                        ctx.lineTo(310, workflowState.steps[index + 1].y - 10);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+            });
+
+            // 数据包动画
+            if (workflowState.dataFlow.active) {
+                const targetY = workflowState.steps[workflowState.currentStep].y + 25;
+                workflowState.dataFlow.y += (targetY - workflowState.dataFlow.y) * 0.1;
+
+                ctx.fillStyle = workflowState.steps[workflowState.currentStep].color;
+                ctx.beginPath();
+                ctx.arc(workflowState.dataFlow.x, workflowState.dataFlow.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('D', workflowState.dataFlow.x, workflowState.dataFlow.y + 4);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        function animateWorkflow() {
+            if (!workflowState.isRunning) return;
+
+            workflowState.animationFrame++;
+
+            if (workflowState.animationFrame % Math.floor(60 / animationSpeed) === 0) {
+                if (workflowState.currentStep < workflowState.steps.length - 1) {
+                    workflowState.currentStep++;
+                    updateStepIndicator(workflowState.currentStep);
+                    workflowState.animationFrame = 0;
+                } else {
+                    workflowState.isRunning = false;
+                }
+            }
+
+            workflowState.dataFlow.active = true;
+            drawWorkflow();
+
+            if (workflowState.isRunning) {
+                requestAnimationFrame(animateWorkflow);
+            }
+        }
+
+        function updateStepIndicator(step) {
+            document.querySelectorAll('.step').forEach((el, index) => {
+                if (index === step) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        function startWorkflow() {
+            if (!workflowState.isRunning) {
+                workflowState.isRunning = true;
+                workflowState.currentStep = 0;
+                workflowState.animationFrame = 0;
+                workflowState.dataFlow = { x: 100, y: 80, active: true };
+                updateStepIndicator(0);
+                animateWorkflow();
+            }
+        }
+
+        function pauseWorkflow() {
+            workflowState.isRunning = false;
+        }
+
+        function resetWorkflow() {
+            workflowState.isRunning = false;
+            workflowState.currentStep = 0;
+            workflowState.animationFrame = 0;
+            workflowState.dataFlow = { x: 100, y: 80, active: false };
+            updateStepIndicator(0);
+            if (workflowState.ctx) {
+                drawWorkflow();
+            }
+        }
+
+        function stepWorkflow() {
+            if (workflowState.currentStep < workflowState.steps.length - 1) {
+                workflowState.currentStep++;
+                updateStepIndicator(workflowState.currentStep);
+                workflowState.dataFlow.active = true;
+                drawWorkflow();
+            }
+        }
+
+        // ==================== 代理机制动画 ====================
+        let proxyState = {
+            canvas: null,
+            ctx: null,
+            isRunning: false,
+            frame: 0,
+            phase: 0 // 0:扫描 1:创建代理 2:注册
+        };
+
+        function initProxy() {
+            proxyState.canvas = document.getElementById('proxyCanvas');
+            if (!proxyState.canvas) return;
+            proxyState.ctx = proxyState.canvas.getContext('2d');
+        }
+
+        function drawProxy() {
+            const ctx = proxyState.ctx;
+            const canvas = proxyState.canvas;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Spring容器
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 5]);
+            ctx.strokeRect(50, 50, 1100, 350);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#667eea';
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText('Spring IOC Container', 70, 80);
+
+            // UserRepository接口
+            ctx.fillStyle = 'rgba(102,126,234,0.2)';
+            ctx.fillRect(100, 120, 200, 80);
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(100, 120, 200, 80);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText('<<interface>>', 150, 145);
+            ctx.fillText('UserRepository', 140, 170);
+
+            if (proxyState.phase >= 0) {
+                // 扫描动画
+                const scanAlpha = proxyState.phase === 0 ? Math.sin(proxyState.frame * 0.1) * 0.5 + 0.5 : 1;
+                ctx.strokeStyle = `rgba(255,215,0,${scanAlpha})`;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(95, 115, 210, 90);
+            }
+
+            if (proxyState.phase >= 1) {
+                // RepositoryFactory
+                ctx.fillStyle = 'rgba(255,121,198,0.2)';
+                ctx.fillRect(400, 120, 250, 80);
+                ctx.strokeStyle = '#ff79c6';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(400, 120, 250, 80);
+                ctx.fillStyle = '#ff79c6';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('RepositoryFactory', 440, 155);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('createRepository()', 450, 180);
+
+                // 箭头
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(300, 160);
+                ctx.lineTo(395, 160);
+                ctx.stroke();
+                drawArrow(ctx, 395, 160);
+            }
+
+            if (proxyState.phase >= 2) {
+                // 代理对象
+                ctx.fillStyle = 'rgba(80,250,123,0.2)';
+                ctx.fillRect(750, 120, 350, 260);
+                ctx.strokeStyle = '#50fa7b';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(750, 120, 350, 260);
+                ctx.fillStyle = '#50fa7b';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('UserRepository$Proxy', 850, 150);
+
+                // 代理内部结构
+                ctx.fillStyle = 'rgba(102,126,234,0.15)';
+                ctx.fillRect(770, 170, 310, 60);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '13px Arial';
+                ctx.fillText('InvocationHandler', 800, 195);
+                ctx.fillText('- 拦截方法调用', 800, 215);
+
+                ctx.fillStyle = 'rgba(255,215,0,0.15)';
+                ctx.fillRect(770, 240, 310, 60);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText('SimpleJpaRepository', 800, 265);
+                ctx.fillText('- 默认CRUD实现', 800, 285);
+
+                ctx.fillStyle = 'rgba(189,147,249,0.15)';
+                ctx.fillRect(770, 310, 310, 60);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText('EntityManager', 800, 335);
+                ctx.fillText('- JPA核心API', 800, 355);
+
+                // 箭头
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(650, 160);
+                ctx.lineTo(745, 200);
+                ctx.stroke();
+                drawArrow(ctx, 745, 200);
+            }
+
+            // Service注入
+            if (proxyState.phase >= 2) {
+                ctx.fillStyle = 'rgba(255,79,79,0.2)';
+                ctx.fillRect(100, 280, 200, 80);
+                ctx.strokeStyle = '#ff4f4f';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(100, 280, 200, 80);
+                ctx.fillStyle = '#ff4f4f';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('UserService', 150, 315);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('@Autowired', 150, 340);
+
+                // 注入箭头
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(300, 300);
+                ctx.bezierCurveTo(500, 300, 700, 250, 750, 240);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                drawArrow(ctx, 750, 240);
+
+                ctx.fillStyle = '#ffd700';
+                ctx.font = '12px Arial';
+                ctx.fillText('依赖注入代理对象', 450, 280);
+            }
+        }
+
+        function drawArrow(ctx, x, y) {
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x - 10, y - 5);
+            ctx.lineTo(x - 10, y + 5);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function animateProxy() {
+            if (!proxyState.isRunning) return;
+
+            proxyState.frame++;
+
+            if (proxyState.frame === 60) proxyState.phase = 1;
+            if (proxyState.frame === 120) proxyState.phase = 2;
+            if (proxyState.frame === 180) {
+                proxyState.isRunning = false;
+            }
+
+            drawProxy();
+
+            if (proxyState.isRunning) {
+                requestAnimationFrame(animateProxy);
+            }
+        }
+
+        function startProxy() {
+            if (!proxyState.isRunning) {
+                proxyState.isRunning = true;
+                proxyState.frame = 0;
+                proxyState.phase = 0;
+                animateProxy();
+            }
+        }
+
+        function resetProxy() {
+            proxyState.isRunning = false;
+            proxyState.frame = 0;
+            proxyState.phase = 0;
+            if (proxyState.ctx) {
+                drawProxy();
+            }
+        }
+
+        // ==================== 方法名解析动画 ====================
+        let queryState = {
+            canvas: null,
+            ctx: null,
+            isRunning: false,
+            frame: 0,
+            methodName: 'findByUsernameAndEmail',
+            parts: [],
+            currentPart: 0
+        };
+
+        function initQuery() {
+            queryState.canvas = document.getElementById('queryCanvas');
+            if (!queryState.canvas) return;
+            queryState.ctx = queryState.canvas.getContext('2d');
+
+            // 解析方法名
+            queryState.parts = [
+                { text: 'find', type: 'keyword', desc: '查询操作', color: '#ff79c6' },
+                { text: 'By', type: 'separator', desc: '条件分隔符', color: '#ffd700' },
+                { text: 'Username', type: 'property', desc: '属性1', color: '#50fa7b' },
+                { text: 'And', type: 'connector', desc: '逻辑连接', color: '#8be9fd' },
+                { text: 'Email', type: 'property', desc: '属性2', color: '#50fa7b' }
+            ];
+        }
+
+        function drawQuery() {
+            const ctx = queryState.ctx;
+            const canvas = queryState.canvas;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 标题
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText('方法名解析过程', 500, 40);
+
+            // 方法名
+            let x = 100;
+            queryState.parts.forEach((part, index) => {
+                const isActive = index === queryState.currentPart;
+                const isParsed = index < queryState.currentPart;
+
+                // 背景
+                const width = ctx.measureText(part.text).width + 20;
+                if (isActive) {
+                    ctx.fillStyle = part.color + '40';
+                    ctx.fillRect(x - 5, 70, width, 40);
+                }
+
+                // 文字
+                ctx.fillStyle = isParsed || isActive ? part.color : '#888';
+                ctx.font = 'bold 24px Consolas';
+                ctx.fillText(part.text, x, 100);
+
+                // 下划线
+                if (isActive) {
+                    ctx.strokeStyle = part.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(x - 5, 115);
+                    ctx.lineTo(x + width - 10, 115);
+                    ctx.stroke();
+                }
+
+                // 说明
+                if (isParsed || isActive) {
+                    ctx.fillStyle = part.color;
+                    ctx.font = '14px Arial';
+                    ctx.fillText(part.desc, x, 145);
+                    ctx.fillText(`[${part.type}]`, x, 165);
+                }
+
+                x += width + 10;
+            });
+
+            // 箭头
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(600, 200);
+            ctx.lineTo(600, 250);
+            ctx.stroke();
+            drawArrow(ctx, 600, 250);
+
+            // JPQL结果
+            if (queryState.currentPart >= queryState.parts.length) {
+                ctx.fillStyle = 'rgba(102,126,234,0.2)';
+                ctx.fillRect(100, 270, 1000, 100);
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(100, 270, 1000, 100);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 18px Arial';
+                ctx.fillText('生成的JPQL查询', 120, 300);
+
+                ctx.fillStyle = '#50fa7b';
+                ctx.font = '16px Consolas';
+                ctx.fillText('SELECT u FROM User u WHERE u.username = ?1 AND u.email = ?2', 120, 340);
+            }
+        }
+
+        function animateQuery() {
+            if (!queryState.isRunning) return;
+
+            queryState.frame++;
+
+            if (queryState.frame % 40 === 0) {
+                if (queryState.currentPart < queryState.parts.length) {
+                    queryState.currentPart++;
+                } else {
+                    queryState.isRunning = false;
+                }
+            }
+
+            drawQuery();
+
+            if (queryState.isRunning) {
+                requestAnimationFrame(animateQuery);
+            }
+        }
+
+        function startQuery() {
+            if (!queryState.isRunning) {
+                queryState.isRunning = true;
+                queryState.frame = 0;
+                queryState.currentPart = 0;
+                animateQuery();
+            }
+        }
+
+        function resetQuery() {
+            queryState.isRunning = false;
+            queryState.frame = 0;
+            queryState.currentPart = 0;
+            if (queryState.ctx) {
+                drawQuery();
+            }
+        }
+
+        // ==================== 事务管理动画 ====================
+        let transactionState = {
+            canvas: null,
+            ctx: null,
+            isRunning: false,
+            frame: 0,
+            phase: 0 // 0:调用 1:开启事务 2:执行 3:提交
+        };
+
+        function initTransaction() {
+            transactionState.canvas = document.getElementById('transactionCanvas');
+            if (!transactionState.canvas) return;
+            transactionState.ctx = transactionState.canvas.getContext('2d');
+        }
+
+        function drawTransaction() {
+            const ctx = transactionState.ctx;
+            const canvas = transactionState.canvas;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 时间线
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(100, 225);
+            ctx.lineTo(1100, 225);
+            ctx.stroke();
+
+            // 时间点
+            const phases = [
+                { x: 100, name: '方法调用', icon: '①' },
+                { x: 350, name: '开启事务', icon: '②' },
+                { x: 600, name: '执行操作', icon: '③' },
+                { x: 850, name: '提交事务', icon: '④' },
+                { x: 1100, name: '返回结果', icon: '⑤' }
+            ];
+
+            phases.forEach((phase, index) => {
+                const isActive = index === transactionState.phase;
+                const isPassed = index < transactionState.phase;
+
+                // 圆点
+                ctx.fillStyle = isActive ? '#ffd700' : isPassed ? '#50fa7b' : 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.arc(phase.x, 225, isActive ? 20 : 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 图标
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(phase.icon, phase.x, 230);
+
+                // 名称
+                ctx.fillStyle = isActive ? '#ffd700' : isPassed ? '#50fa7b' : '#888';
+                ctx.font = '14px Arial';
+                ctx.fillText(phase.name, phase.x, 260);
+                ctx.textAlign = 'left';
+            });
+
+            // 详细信息
+            if (transactionState.phase >= 0) {
+                ctx.fillStyle = 'rgba(255,79,79,0.2)';
+                ctx.fillRect(50, 50, 300, 100);
+                ctx.strokeStyle = '#ff4f4f';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(50, 50, 300, 100);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('@Transactional', 70, 80);
+                ctx.font = '13px Consolas';
+                ctx.fillText('public void saveUser()', 70, 110);
+            }
+
+            if (transactionState.phase >= 1) {
+                ctx.fillStyle = 'rgba(255,215,0,0.2)';
+                ctx.fillRect(400, 50, 300, 100);
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(400, 50, 300, 100);
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('Transaction Begin', 420, 80);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('EntityManager.getTransaction()', 420, 105);
+                ctx.fillText('.begin()', 420, 125);
+            }
+
+            if (transactionState.phase >= 2) {
+                ctx.fillStyle = 'rgba(102,126,234,0.2)';
+                ctx.fillRect(750, 50, 300, 100);
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(750, 50, 300, 100);
+                ctx.fillStyle = '#667eea';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('Execute SQL', 770, 80);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('INSERT INTO users ...', 770, 105);
+                ctx.fillText('UPDATE orders ...', 770, 125);
+            }
+
+            if (transactionState.phase >= 3) {
+                ctx.fillStyle = 'rgba(80,250,123,0.2)';
+                ctx.fillRect(400, 300, 300, 100);
+                ctx.strokeStyle = '#50fa7b';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(400, 300, 300, 100);
+                ctx.fillStyle = '#50fa7b';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('Transaction Commit', 420, 330);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('所有操作持久化到数据库', 420, 360);
+            }
+
+            // 异常回滚提示
+            if (transactionState.phase >= 2) {
+                ctx.fillStyle = 'rgba(255,107,107,0.2)';
+                ctx.fillRect(750, 300, 300, 100);
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(750, 300, 300, 100);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('Exception Rollback', 770, 330);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '12px Arial';
+                ctx.fillText('发生异常时回滚所有操作', 770, 360);
+            }
+        }
+
+        function animateTransaction() {
+            if (!transactionState.isRunning) return;
+
+            transactionState.frame++;
+
+            if (transactionState.frame % 50 === 0) {
+                if (transactionState.phase < 4) {
+                    transactionState.phase++;
+                } else {
+                    transactionState.isRunning = false;
+                }
+            }
+
+            drawTransaction();
+
+            if (transactionState.isRunning) {
+                requestAnimationFrame(animateTransaction);
+            }
+        }
+
+        function startTransaction() {
+            if (!transactionState.isRunning) {
+                transactionState.isRunning = true;
+                transactionState.frame = 0;
+                transactionState.phase = 0;
+                animateTransaction();
+            }
+        }
+
+        function resetTransaction() {
+            transactionState.isRunning = false;
+            transactionState.frame = 0;
+            transactionState.phase = 0;
+            if (transactionState.ctx) {
+                drawTransaction();
+            }
+        }
+
+        // ==================== 页面加载 ====================
+        window.onload = function() {
+            initWorkflow();
+            initProxy();
+            initQuery();
+            initTransaction();
+
+            // 初始绘制
+            drawWorkflow();
+            drawProxy();
+            drawQuery();
+            drawTransaction();
+        };
+    </script>
+</body>
+</html>
