@@ -36,6 +36,7 @@ public class BaseTest {
         Hashtable<String, String> table = new Hashtable<>();
 
         System.out.println(3*0.1==0.3);
+        System.out.println(0.3 == 0.3);
 
     }
 }
