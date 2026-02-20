@@ -956,13 +956,13 @@
             addLog('=== 开始演示扩容机制 ===', 'info');
 
             // 重置
-            arrayList = new ArrayList(4);
+            arrayList = new ArrayList(10);
             valueCounter = 1;
             updateDisplay();
             await sleep(500);
 
             // 填满
-            for (let i = 0; i < 4; i++) {
+            for (let i = 0; i < 10; i++) {
                 arrayList.add(valueCounter++);
                 addLog(`添加元素 ${valueCounter - 1}，size=${arrayList.size}, capacity=${arrayList.capacity}`, 'add');
                 updateDisplay(arrayList.size - 1, 'highlight-add');

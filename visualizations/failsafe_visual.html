@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java Fail-Safe vs Fail-Fast 原理可视化</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --fast: #e74c3c;
+            --safe: #2ecc71;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --text: #34495e;
+            --shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 { color: var(--primary); margin-bottom: 10px; }
+        .subtitle { color: #7f8c8d; }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            max-width: 1200px;
+            justify-content: center;
+        }
+
+        .viz-card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            min-height: 500px;
+        }
+
+        .viz-card.fail-fast { border-top: 6px solid var(--fast); }
+        .viz-card.fail-safe { border-top: 6px solid var(--safe); }
+
+        h2 { margin-top: 0; }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 20px;
+        }
+        .fail-fast .badge { background: var(--fast); }
+        .fail-safe .badge { background: var(--safe); }
+
+        /* 数组显示样式 */
+        .array-container {
+            display: flex;
+            gap: 10px;
+            margin: 40px 0;
+            position: relative;
+            height: 60px;
+            align-items: center;
+        }
+
+        .element {
+            width: 50px;
+            height: 50px;
+            background: #ecf0f1;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.4s ease;
+            position: relative;
+        }
+
+        .element.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .element.modified {
+            border-color: #f39c12;
+            background: #fdf2e9;
+        }
+
+        /* 迭代器指针 */
+        .iterator-ptr {
+            position: absolute;
+            bottom: -35px;
+            left: 25px;
+            transform: translateX(-50%);
+            transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .iterator-ptr::before {
+            content: '▲';
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+        .iterator-ptr::after {
+            content: 'Iterator';
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        /* 状态说明 */
+        .status-box {
+            margin-top: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            width: 100%;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: var(--shadow);
+            background: var(--primary);
+            color: white;
+        }
+
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; }
+
+        .btn-modify { background: #f39c12; }
+
+        /* 异常弹出 */
+        .exception-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(231, 76, 60, 0.1);
+            backdrop-filter: blur(2px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            z-index: 10;
+        }
+
+        .exception-msg {
+            background: var(--fast);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-family: monospace;
+            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.4);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .copy-container {
+            display: none;
+            opacity: 0.6;
+            margin-top: 10px;
+        }
+
+        .info-panel {
+            max-width: 1200px;
+            margin-top: 50px;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        code { background: #f1f3f5; padding: 2px 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Java 集合迭代机制解析</h1>
+    <p class="subtitle">Fail-Fast vs Fail-Safe (Weakly Consistent)</p>
+</header>
+
+<div class="container">
+    <!-- Fail-Fast Section -->
+    <div class="viz-card fail-fast" id="fast-card">
+        <span class="badge">FAIL-FAST</span>
+        <h2>快速失败机制</h2>
+        <p style="font-size: 0.85rem; color: #7f8c8d;">典型代表：ArrayList, HashMap</p>
+        
+        <div class="array-container" id="fast-array">
+            <div class="element">A</div>
+            <div class="element">B</div>
+            <div class="element">C</div>
+            <div class="element">D</div>
+            <div class="iterator-ptr" id="fast-ptr"></div>
+        </div>
+
+        <div class="status-box" id="fast-status">
+            等待开始迭代... (modCount: 0)
+        </div>
+
+        <div class="controls">
+            <button onclick="startIteration('fast')">开始迭代</button>
+            <button class="btn-modify" id="fast-modify-btn" onclick="modifyCollection('fast')" disabled>并发修改</button>
+        </div>
+
+        <div class="exception-overlay" id="fast-exception">
+            <div class="exception-msg">
+                ConcurrentModificationException!
+            </div>
+            <button style="margin-top: 20px;" onclick="reset('fast')">重置</button>
+        </div>
+    </div>
+
+    <!-- Fail-Safe Section -->
+    <div class="viz-card fail-safe" id="safe-card">
+        <span class="badge">FAIL-SAFE</span>
+        <h2>安全失败机制</h2>
+        <p style="font-size: 0.85rem; color: #7f8c8d;">典型代表：CopyOnWriteArrayList</p>
+
+        <div class="array-container" id="safe-array">
+            <div class="element">A</div>
+            <div class="element">B</div>
+            <div class="element">C</div>
+            <div class="element">D</div>
+            <div class="iterator-ptr" id="safe-ptr"></div>
+        </div>
+
+        <div class="array-container copy-container" id="safe-copy">
+            <!-- 这里会动态克隆一个备份 -->
+        </div>
+
+        <div class="status-box" id="safe-status">
+            等待开始迭代... (基于快照)
+        </div>
+
+        <div class="controls">
+            <button onclick="startIteration('safe')">开始迭代</button>
+            <button class="btn-modify" id="safe-modify-btn" onclick="modifyCollection('safe')" disabled>并发修改</button>
+        </div>
+
+        <div class="exception-overlay" id="safe-complete" style="background: rgba(46, 204, 113, 0.1);">
+            <div class="exception-msg" style="background: var(--safe);">
+                迭代顺利完成！
+            </div>
+            <button style="margin-top: 20px;" onclick="reset('safe')">重置</button>
+        </div>
+    </div>
+</div>
+
+<div class="info-panel">
+    <h3>核心原理解析</h3>
+    <div style="display: flex; gap: 40px;">
+        <div style="flex: 1;">
+            <h4>Fail-Fast (快速失败)</h4>
+            <ul>
+                <li><b>原理：</b>迭代器在创建时会记录集合的 <code>modCount</code>。每次调用 <code>next()</code> 都会检查当前集合的 <code>modCount</code> 是否等于记录的值。</li>
+                <li><b>后果：</b>若不相等，说明集合被其他线程（或本线程非迭代器方法）修改，立即抛出 <code>ConcurrentModificationException</code>。</li>
+                <li><b>优点：</b>及时发现错误，避免在不确定的状态下继续运行。</li>
+            </ul>
+        </div>
+        <div style="flex: 1;">
+            <h4>Fail-Safe (安全失败/弱一致性)</h4>
+            <ul>
+                <li><b>原理：</b>迭代时不是直接在原集合上操作，而是先复制一份快照（如 <code>CopyOnWriteArrayList</code>）或在原集合上通过复杂的并发控制（如 <code>ConcurrentHashMap</code>）进行。</li>
+                <li><b>后果：</b>迭代器在快照上运行，期间对原集合的修改不会影响当前迭代过程，也不会抛出异常。</li>
+                <li><b>缺点：</b>迭代器读取的是“旧”数据（快照），且频繁复制集合会消耗内存。</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    const state = {
+        fast: { index: -1, modCount: 0, expectedModCount: 0, timer: null, running: false },
+        safe: { index: -1, timer: null, running: false, modified: false }
+    };
+
+    function startIteration(type) {
+        if (state[type].running) return;
+        reset(type);
+        state[type].running = true;
+        document.getElementById(`${type}-modify-btn`).disabled = false;
+        
+        if (type === 'fast') {
+            state.fast.expectedModCount = state.fast.modCount;
+            updateFastStatus('开始迭代。expectedModCount = ' + state.fast.expectedModCount);
+        } else {
+            updateSafeStatus('开始迭代。迭代器已锁定当前数据快照。');
+        }
+
+        step(type);
+    }
+
+    function step(type) {
+        state[type].index++;
+        const elements = document.querySelectorAll(`#${type}-array .element`);
+        const ptr = document.getElementById(`${type}-ptr`);
+
+        if (state[type].index < elements.length) {
+            // Check Fail-Fast
+            if (type === 'fast' && state.fast.modCount !== state.fast.expectedModCount) {
+                document.getElementById('fast-exception').style.display = 'flex';
+                state.fast.running = false;
+                return;
+            }
+
+            // Update UI
+            elements.forEach(el => el.classList.remove('active'));
+            elements[state[type].index].classList.add('active');
+            ptr.style.left = (state[type].index * 60 + 25) + 'px';
+
+            if (type === 'fast') {
+                updateFastStatus(`正在读取元素: ${elements[state[type].index].innerText} (检查 modCount: ${state.fast.modCount} == ${state.fast.expectedModCount})`);
+            } else {
+                updateSafeStatus(`正在读取快照元素: ${elements[state[type].index].innerText}`);
+            }
+
+            state[type].timer = setTimeout(() => step(type), 1500);
+        } else {
+            // Finished
+            state[type].running = false;
+            document.getElementById(`${type}-modify-btn`).disabled = true;
+            if (type === 'safe') {
+                document.getElementById('safe-complete').style.display = 'flex';
+            }
+        }
+    }
+
+    function modifyCollection(type) {
+        if (type === 'fast') {
+            state.fast.modCount++;
+            const container = document.getElementById('fast-array');
+            const newEl = document.createElement('div');
+            newEl.className = 'element modified';
+            newEl.innerText = 'E';
+            container.insertBefore(newEl, container.lastElementChild);
+            updateFastStatus('<b>外部修改发生！</b> modCount 增加到 ' + state.fast.modCount);
+        } else {
+            state.safe.modified = true;
+            const container = document.getElementById('safe-array');
+            const elements = container.querySelectorAll('.element');
+            // 修改原集合中的一个值
+            elements[elements.length - 1].innerText = 'NEW';
+            elements[elements.length - 1].classList.add('modified');
+            
+            // 显示快照机制
+            const copyContainer = document.getElementById('safe-copy');
+            copyContainer.style.display = 'flex';
+            copyContainer.innerHTML = '<span style="font-size:0.7rem; margin-right:10px;">原集合(已改):</span>';
+            elements.forEach(el => {
+                const clone = el.cloneNode(true);
+                clone.style.transform = 'scale(0.8)';
+                copyContainer.appendChild(clone);
+            });
+
+            updateSafeStatus('<b>外部修改发生！</b> 原集合已变，但迭代器继续在旧快照上运行。');
+        }
+        document.getElementById(`${type}-modify-btn`).disabled = true;
+    }
+
+    function updateFastStatus(msg) {
+        document.getElementById('fast-status').innerHTML = msg;
+    }
+
+    function updateSafeStatus(msg) {
+        document.getElementById('safe-status').innerHTML = msg;
+    }
+
+    function reset(type) {
+        clearTimeout(state[type].timer);
+        state[type].index = -1;
+        state[type].running = false;
+        
+        const ptr = document.getElementById(`${type}-ptr`);
+        ptr.style.left = '25px';
+
+        const elements = document.querySelectorAll(`#${type}-array .element`);
+        elements.forEach(el => {
+            el.classList.remove('active');
+            el.classList.remove('modified');
+        });
+
+        if (type === 'fast') {
+            state.fast.modCount = 0;
+            state.fast.expectedModCount = 0;
+            document.getElementById('fast-exception').style.display = 'none';
+            // 移除添加的元素
+            const fastArray = document.getElementById('fast-array');
+            while(fastArray.children.length > 5) {
+                fastArray.removeChild(fastArray.children[fastArray.children.length - 2]);
+            }
+            updateFastStatus('已重置。');
+        } else {
+            document.getElementById('safe-complete').style.display = 'none';
+            document.getElementById('safe-copy').style.display = 'none';
+            const safeArray = document.getElementById('safe-array');
+            const safeElements = safeArray.querySelectorAll('.element');
+            safeElements[safeElements.length-1].innerText = 'D';
+            updateSafeStatus('已重置。');
+        }
+        document.getElementById(`${type}-modify-btn`).disabled = true;
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>volatile 可见性与有序性可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #1b2735 0, #090a0f 60%, #000 100%);
+            min-height: 100vh;
+            color: #f8f9fa;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1300px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #4dabf7, #63e6be);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #868e96;
+            margin-bottom: 28px;
+            font-size: 0.95rem;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            padding: 20px 22px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.8);
+            color: #ced4da;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+        }
+        .tab-btn {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #adb5bd;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tab-btn.active {
+            background: rgba(45, 212, 191, 0.15);
+            color: #63e6be;
+            border-color: rgba(99, 230, 190, 0.7);
+        }
+        .visibility-scene {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 10px;
+        }
+        .thread-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .thread-title {
+            font-size: 0.9rem;
+            color: #91a7ff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mem-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mem-label {
+            font-size: 0.8rem;
+            color: #868e96;
+            width: 80px;
+            text-align: right;
+        }
+        .mem-box {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(134, 142, 150, 0.5);
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        .mem-value {
+            font-weight: 600;
+            color: #e9ecef;
+        }
+        .tag {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 999px;
+        }
+        .tag-main {
+            background: rgba(56, 189, 248, 0.15);
+            color: #4dabf7;
+        }
+        .tag-local {
+            background: rgba(129, 140, 248, 0.15);
+            color: #a5b4fc;
+        }
+        .tag-volatile {
+            background: rgba(45, 212, 191, 0.15);
+            color: #63e6be;
+        }
+        .flow-description {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px dashed rgba(134, 142, 150, 0.5);
+            font-size: 0.82rem;
+            line-height: 1.6;
+            color: #ced4da;
+        }
+        .control-row {
+            margin-top: 14px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 7px 14px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4dabf7, #9775fa);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.18);
+            color: #e9ecef;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            color: #ced4da;
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .btn:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        .code-panel {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-family: "JetBrains Mono", "Consolas", monospace;
+            font-size: 0.78rem;
+        }
+        .code-block {
+            background: #020617;
+            border-radius: 10px;
+            padding: 10px;
+            border: 1px solid rgba(51, 65, 85, 0.9);
+            position: relative;
+        }
+        .code-title {
+            position: absolute;
+            top: 6px;
+            right: 10px;
+            font-size: 0.7rem;
+            color: #868e96;
+        }
+        pre {
+            margin-top: 10px;
+            white-space: pre;
+            color: #e9ecef;
+        }
+        .kw { color: #7dd3fc; }
+        .ty { color: #a5b4fc; }
+        .fn { color: #facc15; }
+        .cm { color: #6ee7b7; }
+        .highlight-line {
+            background: rgba(56, 189, 248, 0.12);
+        }
+        .ordering-scene {
+            margin-top: 8px;
+        }
+        .timeline {
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .timeline-col-title {
+            font-size: 0.82rem;
+            color: #91a7ff;
+            margin-bottom: 4px;
+        }
+        .timeline-step {
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(51, 65, 85, 0.9);
+            background: rgba(15, 23, 42, 0.95);
+            font-size: 0.78rem;
+            color: #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .step-index {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: #adb5bd;
+        }
+        .timeline-step.active {
+            border-color: rgba(99, 230, 190, 0.9);
+            background: rgba(15, 118, 110, 0.35);
+        }
+        .legend {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 0.75rem;
+            color: #868e96;
+        }
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+        }
+        .dot-visibility {
+            background: #4dabf7;
+        }
+        .dot-order {
+            background: #63e6be;
+        }
+        .explain-card {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 16px;
+        }
+        .explain-section-title {
+            font-size: 0.9rem;
+            color: #e9ecef;
+            margin-bottom: 8px;
+        }
+        .explain-list {
+            font-size: 0.8rem;
+            color: #ced4da;
+            line-height: 1.7;
+        }
+        .explain-list li {
+            margin-left: 16px;
+            margin-bottom: 4px;
+        }
+        @media (max-width: 1100px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+            .code-panel {
+                grid-template-columns: 1fr;
+            }
+            .explain-card {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>volatile 可见性与有序性可视化</h1>
+    <p class="subtitle">从 CPU 缓存和指令重排视角理解 volatile 的 happens-before 语义</p>
+    <div class="main-layout">
+        <div class="card" id="visibility-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>内存可见性模拟</span>
+                    <span class="badge">flag 读写 demo</span>
+                </div>
+                <div class="tabs">
+                    <button class="tab-btn active" data-mode="normal">普通变量</button>
+                    <button class="tab-btn" data-mode="volatile">volatile 变量</button>
+                </div>
+            </div>
+            <div class="visibility-scene">
+                <div class="thread-column">
+                    <div class="thread-title">
+                        <span>线程 A</span>
+                        <span style="font-size:0.75rem;color:#adb5bd">写线程</span>
+                    </div>
+                    <div class="mem-row">
+                        <div class="mem-label">本地缓存</div>
+                        <div class="mem-box" id="localA-box">
+                            <span>flagA</span>
+                            <span class="mem-value" id="localA-val">false</span>
+                            <span class="tag tag-local">cache</span>
+                        </div>
+                    </div>
+                    <div class="mem-row">
+                        <div class="mem-label">主内存</div>
+                        <div class="mem-box">
+                            <span>flag</span>
+                            <span class="mem-value" id="main-val">false</span>
+                            <span class="tag tag-main">main</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="thread-column">
+                    <div class="thread-title">
+                        <span>线程 B</span>
+                        <span style="font-size:0.75rem;color:#adb5bd">读线程</span>
+                    </div>
+                    <div class="mem-row">
+                        <div class="mem-label">本地缓存</div>
+                        <div class="mem-box" id="localB-box">
+                            <span>flagB</span>
+                            <span class="mem-value" id="localB-val">false</span>
+                            <span class="tag tag-local">cache</span>
+                        </div>
+                    </div>
+                    <div class="mem-row">
+                        <div class="mem-label">观察到</div>
+                        <div class="mem-box">
+                            <span>while(flag)</span>
+                            <span class="mem-value" id="loop-state">仍在自旋</span>
+                            <span class="tag tag-volatile" id="mode-tag">普通</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flow-description" id="visibility-desc">
+                当前为普通变量模式。线程 A 把 flag 从 false 改为 true 后, 只更新了自己的缓存, 主内存和线程 B 的缓存可能一段时间内仍是 false, 所以 B 可能一直自旋看不到变化。
+            </div>
+            <div class="control-row">
+                <button class="btn btn-primary" id="btn-step-write">A 写 flag = true</button>
+                <button class="btn btn-secondary" id="btn-step-flush">缓存刷回主内存</button>
+                <button class="btn btn-secondary" id="btn-step-read">B 从缓存读 flag</button>
+                <button class="btn btn-outline" id="btn-reset-vis">重置</button>
+            </div>
+            <div class="code-panel">
+                <div class="code-block" id="code-writer">
+                    <div class="code-title">线程 A</div>
+<pre><span class="kw">class</span> WorkerA {
+    <span class="ty">boolean</span> flag;
+
+    <span class="kw">void</span> <span class="fn">run</span>() {
+        doWork();
+        flag = <span class="kw">true</span>;
+    }
+}</pre>
+                </div>
+                <div class="code-block" id="code-reader">
+                    <div class="code-title">线程 B</div>
+<pre><span class="kw">class</span> WorkerB {
+    <span class="ty">boolean</span> flag;
+
+    <span class="kw">void</span> <span class="fn">run</span>() {
+        <span class="kw">while</span> (!flag) { }
+        afterSeeTrue();
+    }
+}</pre>
+                </div>
+            </div>
+        </div>
+        <div class="card" id="ordering-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span>指令重排与有序性</span>
+                    <span class="badge">happens-before</span>
+                </div>
+            </div>
+            <div class="ordering-scene">
+                <div class="code-panel">
+                    <div class="code-block" id="code-thread1">
+                        <div class="code-title">线程 1</div>
+<pre id="code-t1-pre"><span class="cm">/* 写线程 */</span>
+<span class="ty">int</span> x = <span class="number">0</span>;
+<span class="kw">boolean</span> ready;</pre>
+                    </div>
+                    <div class="code-block" id="code-thread2">
+                        <div class="code-title">线程 2</div>
+<pre id="code-t2-pre"><span class="cm">/* 读线程 */</span>
+<span class="kw">if</span> (ready) {
+    use(x);
+}</pre>
+                    </div>
+                </div>
+                <div class="timeline">
+                    <div>
+                        <div class="timeline-col-title">无 volatile: 可能的重排</div>
+                        <div class="timeline-step" data-tl="0-0">
+                            <span class="step-index">1</span>
+                            <span>线程 1 将 ready 赋值 true 的写重排到 x = 1 之前</span>
+                        </div>
+                        <div class="timeline-step" data-tl="0-1">
+                            <span class="step-index">2</span>
+                            <span>线程 2 先读到 ready == true, 再读取 x, 可能仍为 0</span>
+                        </div>
+                        <div class="timeline-step" data-tl="0-2">
+                            <span class="step-index">3</span>
+                            <span>出现 ready 为 true 但 x 还是旧值的情况</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="timeline-col-title">有 volatile: 重排被禁止</div>
+                        <div class="timeline-step" data-tl="1-0">
+                            <span class="step-index">1</span>
+                            <span>对 volatile ready 的写之前的 x = 1 被禁止重排到后面</span>
+                        </div>
+                        <div class="timeline-step" data-tl="1-1">
+                            <span class="step-index">2</span>
+                            <span>线程 2 读取 volatile ready 为 true 时, 必须先读取内存中最新的 x</span>
+                        </div>
+                        <div class="timeline-step" data-tl="1-2">
+                            <span class="step-index">3</span>
+                            <span>保证看到 ready 为 true 时一定也能看到 x = 1</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="control-row">
+                    <button class="btn btn-primary" id="btn-order-normal">无 volatile 路径</button>
+                    <button class="btn btn-secondary" id="btn-order-volatile">volatile 路径</button>
+                </div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <span class="dot dot-visibility"></span>
+                        <span>可见性: 缓存与主内存同步</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="dot dot-order"></span>
+                        <span>有序性: 写入与读取的先后关系</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="explain-card">
+        <div class="card">
+            <div class="explain-section-title">volatile 如何保证可见性</div>
+            <ul class="explain-list">
+                <li>对 volatile 变量的写在底层会转换为带有内存屏障的写入, 写入后会把该变量刷新到主内存。</li>
+                <li>对 volatile 变量的读会从主内存中重新读取该变量, 同时使本地缓存中对应的缓存行失效。</li>
+                <li>在 Java 内存模型中, volatile 写对后续任意线程的 volatile 读建立了 happens-before 关系。</li>
+            </ul>
+        </div>
+        <div class="card">
+            <div class="explain-section-title">volatile 如何影响有序性</div>
+            <ul class="explain-list">
+                <li>对 volatile 变量的写, 禁止其前面的普通读写被重排到后面。</li>
+                <li>对 volatile 变量的读, 禁止其后面的普通读写被重排到前面。</li>
+                <li>结合这两条, 可构建出类似轻量级锁的“发布-订阅”模式, 保证对象发布的安全性。</li>
+            </ul>
+        </div>
+        <div class="card">
+            <div class="explain-section-title">volatile 与 synchronized 的区别</div>
+            <ul class="explain-list">
+                <li>volatile 只保证可见性和一定的有序性, 不提供原子性和互斥, 适合状态标志、配置开关等简单场景。</li>
+                <li>synchronized 除了可见性和有序性外, 还通过锁保证临界区代码的互斥执行, 能维护复合操作的原子性。</li>
+                <li>可视化上可以理解为: volatile 只在变量旁边加了“广播更新”的喇叭, 而 synchronized 还在代码块入口加了一道“同一时刻只允许一个线程进入”的门。</li>
+            </ul>
+        </div>
+    </div>
+</div>
+<script>
+    const state = {
+        mode: "normal",
+        mainFlag: false,
+        localA: false,
+        localB: false
+    };
+    const modeTag = document.getElementById("mode-tag");
+    const mainValEl = document.getElementById("main-val");
+    const localAValEl = document.getElementById("localA-val");
+    const localBValEl = document.getElementById("localB-val");
+    const loopStateEl = document.getElementById("loop-state");
+    const btnWrite = document.getElementById("btn-step-write");
+    const btnFlush = document.getElementById("btn-step-flush");
+    const btnRead = document.getElementById("btn-step-read");
+    const btnResetVis = document.getElementById("btn-reset-vis");
+    const descEl = document.getElementById("visibility-desc");
+    const tabs = document.querySelectorAll(".tab-btn");
+    tabs.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabs.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            state.mode = btn.getAttribute("data-mode");
+            resetVisibility();
+            if (state.mode === "normal") {
+                modeTag.textContent = "普通";
+                descEl.textContent = "当前为普通变量模式。线程 A 把 flag 从 false 改为 true 后, 只保证自己看到更新, 线程 B 的缓存可能仍是旧值, 所以 B 可能一直自旋看不到变化。";
+            } else {
+                modeTag.textContent = "volatile";
+                descEl.textContent = "当前为 volatile 模式。线程 A 对 flag 的写会立刻刷新到主内存, 线程 B 每次读 flag 都会从主内存获取最新值, 因此不会无限自旋。";
+            }
+        });
+    });
+    function syncView() {
+        mainValEl.textContent = String(state.mainFlag);
+        localAValEl.textContent = String(state.localA);
+        localBValEl.textContent = String(state.localB);
+        if (state.localB) {
+            loopStateEl.textContent = "跳出自旋";
+        } else {
+            loopStateEl.textContent = "仍在自旋";
+        }
+    }
+    function resetVisibility() {
+        state.mainFlag = false;
+        state.localA = false;
+        state.localB = false;
+        syncView();
+        btnWrite.disabled = false;
+        btnFlush.disabled = false;
+        btnRead.disabled = false;
+    }
+    btnWrite.addEventListener("click", () => {
+        state.localA = true;
+        if (state.mode === "volatile") {
+            state.mainFlag = true;
+        }
+        descEl.textContent = state.mode === "normal"
+            ? "线程 A 写 flag = true 只更新了本地缓存, 主内存中的值可能仍为 false。"
+            : "线程 A 写 volatile flag = true, 同步刷新到主内存, 让其他线程有机会立刻看到。";
+        syncView();
+    });
+    btnFlush.addEventListener("click", () => {
+        if (state.mode === "normal") {
+            state.mainFlag = state.localA;
+            descEl.textContent = "缓存刷回主内存后, 主内存中的 flag 也变为 true, 但线程 B 的本地缓存还没有更新。";
+        } else {
+            state.mainFlag = state.localA;
+            descEl.textContent = "在 volatile 模式下, 写操作已经保证主内存是最新的, 这个步骤可以理解为底层的写屏障效果。";
+        }
+        syncView();
+    });
+    btnRead.addEventListener("click", () => {
+        if (state.mode === "normal") {
+            state.localB = state.localB;
+            descEl.textContent = "线程 B 从自己的缓存读 flag, 如果缓存里还是 false, 就会继续自旋看不到更新。";
+        } else {
+            state.localB = state.mainFlag;
+            descEl.textContent = "线程 B 读取 volatile flag 时, 会从主内存拿到最新值, 并使本地缓存失效, 因此能够及时退出自旋。";
+        }
+        syncView();
+    });
+    btnResetVis.addEventListener("click", () => {
+        resetVisibility();
+        if (state.mode === "normal") {
+            descEl.textContent = "当前为普通变量模式。线程 A 把 flag 从 false 改为 true 后, 只保证自己看到更新, 线程 B 的缓存可能仍是旧值, 所以 B 可能一直自旋看不到变化。";
+        } else {
+            descEl.textContent = "当前为 volatile 模式。线程 A 对 flag 的写会立刻刷新到主内存, 线程 B 每次读 flag 都会从主内存获取最新值, 因此不会无限自旋。";
+        }
+    });
+    resetVisibility();
+    const t1Pre = document.getElementById("code-t1-pre");
+    const t2Pre = document.getElementById("code-t2-pre");
+    const normalBtn = document.getElementById("btn-order-normal");
+    const volatileBtn = document.getElementById("btn-order-volatile");
+    const tlSteps = document.querySelectorAll(".timeline-step");
+    function clearHighlightOrder() {
+        tlSteps.forEach(s => s.classList.remove("active"));
+        t1Pre.innerHTML =
+            '<span class="cm">/* 写线程 */</span>\n' +
+            '<span class="ty">int</span> x = <span class="number">0</span>;\n' +
+            '<span class="kw">boolean</span> ready;';
+        t2Pre.innerHTML =
+            '<span class="cm">/* 读线程 */</span>\n' +
+            '<span class="kw">if</span> (ready) {\n' +
+            '    use(x);\n' +
+            '}';
+    }
+    normalBtn.addEventListener("click", () => {
+        clearHighlightOrder();
+        tlSteps.forEach(s => {
+            const idx = s.getAttribute("data-tl");
+            if (idx && idx.startsWith("0-")) {
+                s.classList.add("active");
+            }
+        });
+        t1Pre.innerHTML =
+            '<span class="cm">/* 写线程, 无 volatile */</span>\n' +
+            '<span class="kw">void</span> <span class="fn">writer</span>() {\n' +
+            '    ready = <span class="kw">true</span>;\n' +
+            '    x = <span class="number">1</span>;\n' +
+            '}';
+        t2Pre.innerHTML =
+            '<span class="cm">/* 读线程 */</span>\n' +
+            '<span class="kw">void</span> <span class="fn">reader</span>() {\n' +
+            '    <span class="kw">if</span> (ready) {\n' +
+            '        use(x);\n' +
+            '    }\n' +
+            '}';
+    });
+    volatileBtn.addEventListener("click", () => {
+        clearHighlightOrder();
+        tlSteps.forEach(s => {
+            const idx = s.getAttribute("data-tl");
+            if (idx && idx.startsWith("1-")) {
+                s.classList.add("active");
+            }
+        });
+        t1Pre.innerHTML =
+            '<span class="cm">/* 写线程, ready 为 volatile */</span>\n' +
+            '<span class="kw">volatile</span> <span class="kw">boolean</span> ready;\n' +
+            '<span class="ty">int</span> x = <span class="number">0</span>;\n' +
+            '\n' +
+            '<span class="kw">void</span> <span class="fn">writer</span>() {\n' +
+            '    x = <span class="number">1</span>;\n' +
+            '    ready = <span class="kw">true</span>;\n' +
+            '}';
+        t2Pre.innerHTML =
+            '<span class="cm">/* 读线程 */</span>\n' +
+            '<span class="kw">void</span> <span class="fn">reader</span>() {\n' +
+            '    <span class="kw">if</span> (ready) {\n' +
+            '        use(x);\n' +
+            '    }\n' +
+            '}';
+    });
+</script>
+</body>
+</html>
