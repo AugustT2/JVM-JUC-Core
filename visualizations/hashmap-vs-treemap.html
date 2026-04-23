@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HashMap vs TreeMap — 底层结构可视化对比</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d28;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --text-dim: #8b8b9e;
+    --accent: #f59e0b;
+    --accent2: #10b981;
+    --red: #ff6b6b;
+    --green: #51cf66;
+    --yellow: #ffd43b;
+    --blue: #339af0;
+    --purple: #6c5ce7;
+    --orange: #ff922b;
+    --cyan: #00cec9;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .header {
+    text-align: center;
+    padding: 28px 20px 12px;
+    background: linear-gradient(135deg, #1a1d28 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 1.9em;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .header p { color: var(--text-dim); font-size: 0.9em; }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    flex-wrap: wrap;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }
+  .controls input {
+    width: 100px;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95em;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .controls input:focus { border-color: var(--accent); }
+  .controls label { font-size: 0.85em; color: var(--text-dim); }
+  .controls button {
+    padding: 7px 18px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #fff;
+  }
+  .btn-put { background: var(--accent); }
+  .btn-put:hover { background: #fbbf24; transform: translateY(-1px); }
+  .btn-random { background: var(--accent2); }
+  .btn-random:hover { background: #34d399; transform: translateY(-1px); }
+  .btn-clear { background: #555; }
+  .btn-clear:hover { background: #666; }
+  .btn-demo { background: var(--purple); }
+  .btn-demo:hover { background: #7c6cf7; transform: translateY(-1px); }
+  .btn-get { background: var(--blue); }
+  .btn-get:hover { background: #4da6ff; transform: translateY(-1px); }
+
+  /* Visualization area */
+  .viz-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 460px;
+  }
+  .viz-panel {
+    position: relative;
+    border-right: 1px solid var(--border);
+  }
+  .viz-panel:last-child { border-right: none; }
+  .viz-panel canvas {
+    display: block;
+    width: 100%;
+    height: 460px;
+  }
+  .viz-label {
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    font-size: 1em;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 16px;
+    z-index: 2;
+  }
+  .label-hm { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .label-tm { background: rgba(16,185,129,0.15); color: var(--accent2); border: 1px solid var(--accent2); }
+  .viz-stats {
+    position: absolute;
+    bottom: 10px;
+    left: 14px;
+    font-size: 0.75em;
+    color: var(--text-dim);
+    z-index: 2;
+  }
+  .viz-stats span { margin-right: 12px; }
+
+  /* Info section */
+  .info-section {
+    padding: 28px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .info-section h2 {
+    font-size: 1.3em;
+    margin-bottom: 18px;
+    color: var(--accent2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-section h2::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 22px;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+  .comp-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    transition: transform 0.2s;
+  }
+  .comp-card:hover { transform: translateY(-2px); }
+  .comp-card h3 {
+    font-size: 1.05em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .comp-card ul { list-style: none; padding: 0; }
+  .comp-card ul li {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.88em;
+    line-height: 1.6;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .comp-card ul li:last-child { border-bottom: none; }
+  .comp-card ul li::before { content: '•'; color: var(--text-dim); flex-shrink: 0; }
+
+  /* Table */
+  .props-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .props-table th, .props-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88em;
+  }
+  .props-table th {
+    background: rgba(245,158,11,0.08);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .props-table td { color: var(--text); }
+  .props-table tr:last-child td { border-bottom: none; }
+  .props-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .tag-good { color: var(--green); font-weight: 600; }
+  .tag-warn { color: var(--orange); font-weight: 600; }
+  .tag-bad { color: var(--red); font-weight: 600; }
+
+  /* Special cards */
+  .explain-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 28px;
+  }
+  .explain-card h3 {
+    font-size: 1.05em;
+    margin-bottom: 14px;
+  }
+  .explain-card p, .explain-card li {
+    font-size: 0.9em;
+    line-height: 1.8;
+  }
+  .explain-card ol { padding-left: 20px; }
+  .explain-card ol li {
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .explain-card ol li:last-child { border-bottom: none; }
+  .explain-card strong { color: var(--yellow); }
+
+  .step-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    font-size: 0.85em;
+  }
+  .step-box {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 8px;
+    padding: 8px 14px;
+    text-align: center;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .step-arrow { color: var(--text-dim); font-size: 1.2em; }
+
+  .hash-visual {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: var(--text-dim);
+  }
+  .hash-visual .key { color: var(--accent); font-weight: 700; }
+  .hash-visual .op { color: var(--text-dim); }
+  .hash-visual .result { color: var(--accent2); font-weight: 700; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 10px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    font-size: 0.8em;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+
+  /* Highlight animation */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .highlight { animation: pulse 0.6s ease-in-out 3; }
+
+  @media (max-width: 768px) {
+    .viz-container { grid-template-columns: 1fr; }
+    .viz-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.4em; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🗂️ HashMap vs TreeMap — 底层结构可视化对比</h1>
+  <p>交互式可视化 — 插入键值对，观察 HashMap（哈希桶）和 TreeMap（红黑树）的不同行为</p>
+</div>
+
+<div class="controls">
+  <label>Key:</label>
+  <input type="text" id="keyInput" placeholder="键" maxlength="8">
+  <label>Value:</label>
+  <input type="text" id="valInput" placeholder="值" maxlength="8">
+  <button class="btn-put" onclick="putEntry()">Put 插入</button>
+  <button class="btn-get" onclick="getEntry()">Get 查找</button>
+  <button class="btn-random" onclick="putRandom()">随机插入</button>
+  <button class="btn-demo" onclick="runDemo()">演示对比</button>
+  <button class="btn-clear" onclick="clearAll()">清空</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent);border-color:#d97706"></div> HashMap 桶/节点</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--red);border-color:#cc5555"></div> TreeMap 红节点</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#444;border-color:#666"></div> TreeMap 黑节点</div>
+  <div class="legend-item"><div class="legend-dot" style="background:transparent;border-color:#555;border-style:dashed"></div> 空桶/NIL</div>
+</div>
+
+<div class="viz-container">
+  <div class="viz-panel">
+    <div class="viz-label label-hm">HashMap（数组 + 链表）</div>
+    <canvas id="hmCanvas"></canvas>
+    <div class="viz-stats" id="hmStats"></div>
+  </div>
+  <div class="viz-panel">
+    <div class="viz-label label-tm">TreeMap（红黑树）</div>
+    <canvas id="tmCanvas"></canvas>
+    <div class="viz-stats" id="tmStats"></div>
+  </div>
+</div>
+
+<div class="info-section">
+  <!-- 底层结构 -->
+  <h2>底层结构对比</h2>
+  <div class="comparison-grid">
+    <div class="comp-card">
+      <h3><span style="color:var(--accent)">🗂️</span> HashMap 底层结构</h3>
+      <ul>
+        <li><strong>数组 + 链表 + 红黑树</strong>（JDK 8+）</li>
+        <li>底层是一个 <strong>Node[] table</strong> 数组</li>
+        <li>每个数组位置称为一个<strong>"桶"（bucket）</strong></li>
+        <li>通过 <strong>hash(key) % capacity</strong> 决定放入哪个桶</li>
+        <li>哈希冲突时，新节点挂到链表尾部</li>
+        <li>链表长度 ≥ 8 且数组长度 ≥ 64 时，<strong>链表转为红黑树</strong></li>
+        <li>负载因子默认 <strong>0.75</strong>，超过时扩容为 2 倍</li>
+      </ul>
+    </div>
+    <div class="comp-card">
+      <h3><span style="color:var(--accent2)">🌳</span> TreeMap 底层结构</h3>
+      <ul>
+        <li>底层是一棵<strong>红黑树（Red-Black Tree）</strong></li>
+        <li>每个节点存储 <strong>key-value 对</strong></li>
+        <li>按 key 的<strong>自然顺序</strong>（或 Comparator）排列</li>
+        <li>通过<strong>比较 key 大小</strong>决定左/右子树</li>
+        <li>插入后通过<strong>旋转和变色</strong>维持平衡</li>
+        <li>树高始终 ≤ <strong>2·log₂(n+1)</strong></li>
+        <li>中序遍历即为<strong>有序序列</strong></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 时间复杂度 -->
+  <h2>时间复杂度对比</h2>
+  <table class="props-table">
+    <thead>
+      <tr><th>操作</th><th>HashMap</th><th>TreeMap</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>put(key, value)</td>
+        <td><span class="tag-good">O(1)</span> 平均 / <span class="tag-warn">O(n)</span> 最差（全冲突）</td>
+        <td><span class="tag-good">O(log n)</span> 始终</td>
+      </tr>
+      <tr>
+        <td>get(key)</td>
+        <td><span class="tag-good">O(1)</span> 平均 / <span class="tag-warn">O(n)</span> 最差</td>
+        <td><span class="tag-good">O(log n)</span> 始终</td>
+      </tr>
+      <tr>
+        <td>remove(key)</td>
+        <td><span class="tag-good">O(1)</span> 平均 / <span class="tag-warn">O(n)</span> 最差</td>
+        <td><span class="tag-good">O(log n)</span> 始终</td>
+      </tr>
+      <tr>
+        <td>containsKey</td>
+        <td><span class="tag-good">O(1)</span> 平均</td>
+        <td><span class="tag-good">O(log n)</span></td>
+      </tr>
+      <tr>
+        <td>遍历</td>
+        <td><span class="tag-good">O(n)</span> 但<strong>无序</strong></td>
+        <td><span class="tag-good">O(n)</span> 且<strong>有序</strong></td>
+      </tr>
+      <tr>
+        <td>范围查询<br><span style="color:var(--text-dim);font-size:0.85em">subMap, headMap, tailMap</span></td>
+        <td><span class="tag-bad">❌ 不支持</span></td>
+        <td><span class="tag-good">O(log n + k)</span> k 为结果大小</td>
+      </tr>
+      <tr>
+        <td>最小/最大值<br><span style="color:var(--text-dim);font-size:0.85em">firstKey, lastKey</span></td>
+        <td><span class="tag-bad">O(n)</span> 需全遍历</td>
+        <td><span class="tag-good">O(log n)</span> 直接取最左/最右</td>
+      </tr>
+      <tr>
+        <td>空间</td>
+        <td>O(n)，可能有空桶浪费</td>
+        <td>O(n)，每个节点含左右指针+颜色</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- TreeMap 有序性 -->
+  <h2>TreeMap 如何保证有序？</h2>
+  <div class="explain-card">
+    <h3 style="color: var(--accent2);">🌳 红黑树的中序遍历 = 有序序列</h3>
+    <p style="margin-bottom: 14px;">
+      TreeMap 的有序性来源于<strong>红黑树的二叉搜索树性质 + 中序遍历</strong>。整个过程分为两步：
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 10px; padding: 16px;">
+        <h4 style="color: var(--accent2); margin-bottom: 8px;">第一步：BST 性质保证结构有序</h4>
+        <ul style="list-style: none; padding: 0; font-size: 0.88em; line-height: 1.8;">
+          <li>• 插入时，通过 <strong>compareTo(key)</strong> 比较大小</li>
+          <li>• key 比当前节点小 → 放入<strong>左子树</strong></li>
+          <li>• key 比当前节点大 → 放入<strong>右子树</strong></li>
+          <li>• 这保证了：左 &lt; 根 &lt; 右</li>
+        </ul>
+      </div>
+      <div style="background: rgba(108,92,231,0.06); border: 1px solid rgba(108,92,231,0.2); border-radius: 10px; padding: 16px;">
+        <h4 style="color: var(--purple); margin-bottom: 8px;">第二步：中序遍历输出有序序列</h4>
+        <ul style="list-style: none; padding: 0; font-size: 0.88em; line-height: 1.8;">
+          <li>• 中序遍历顺序：<strong>左 → 根 → 右</strong></li>
+          <li>• 因为 左 &lt; 根 &lt; 右，所以输出天然有序</li>
+          <li>• 红黑树的平衡性保证遍历效率 O(n)</li>
+          <li>• iterator()、entrySet() 等都基于中序遍历</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+      <h4 style="color: var(--accent); margin-bottom: 8px;">🔄 插入流程示意</h4>
+      <div class="step-flow">
+        <div class="step-box">put("banana", 2)</div>
+        <div class="step-arrow">→</div>
+        <div class="step-box">compareTo("apple") &gt; 0</div>
+        <div class="step-arrow">→</div>
+        <div class="step-box">走右子树</div>
+        <div class="step-arrow">→</div>
+        <div class="step-box">compareTo("cherry") &lt; 0</div>
+        <div class="step-arrow">→</div>
+        <div class="step-box">走左子树</div>
+        <div class="step-arrow">→</div>
+        <div class="step-box">插入 + 旋转修复</div>
+      </div>
+    </div>
+
+    <div style="background: rgba(255,107,107,0.06); border: 1px solid rgba(255,107,107,0.15); border-radius: 10px; padding: 16px;">
+      <h4 style="color: var(--red); margin-bottom: 8px;">⚠️ 注意事项</h4>
+      <ul style="list-style: none; padding: 0; font-size: 0.88em; line-height: 1.8;">
+        <li>• Key 必须<strong>实现 Comparable 接口</strong>，或在构造时传入 <strong>Comparator</strong></li>
+        <li>• Key 的比较逻辑必须与 equals() <strong>一致</strong>，否则行为异常</li>
+        <li>• HashMap 用 equals() 判断相等，TreeMap 用 compareTo() 判断相等</li>
+        <li>• TreeMap <strong>不允许 null key</strong>（因为无法比较），HashMap 允许一个 null key</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- HashMap 哈希流程 -->
+  <h2>HashMap 的 Put 流程</h2>
+  <div class="explain-card">
+    <h3 style="color: var(--accent);">🗂️ 从 Key 到桶位置</h3>
+    <div class="step-flow" style="margin-bottom: 14px;">
+      <div class="step-box">put(key, val)</div>
+      <div class="step-arrow">→</div>
+      <div class="step-box">hash(key)</div>
+      <div class="step-arrow">→</div>
+      <div class="step-box">index = hash & (n-1)</div>
+      <div class="step-arrow">→</div>
+      <div class="step-box">放入桶[index]</div>
+    </div>
+    <div class="hash-visual">
+      <span>例：</span>
+      <span class="key">"hello"</span>
+      <span class="op">.hashCode() = </span>
+      <span class="result">69609650</span>
+      <span class="op">→ 扰动 </span>
+      <span class="result">69609650 ^ (69609650 &gt;&gt;&gt; 16)</span>
+      <span class="op">→ </span>
+      <span class="result">index = hash & 15 = 2</span>
+    </div>
+    <p style="margin-top: 12px; font-size: 0.88em; line-height: 1.8;">
+      JDK 8 使用 <strong>hash ^ (hash >>> 16)</strong> 做扰动处理，让高位也参与运算，减少碰撞概率。
+      数组长度必须是 <strong>2 的幂次</strong>，这样 <code>hash & (n-1)</code> 等价于取模运算，但更快。
+    </p>
+  </div>
+
+  <!-- 使用场景 -->
+  <h2>使用场景对比</h2>
+  <div class="comparison-grid">
+    <div class="comp-card">
+      <h3><span style="color:var(--accent)">🗂️</span> 适合用 HashMap</h3>
+      <ul>
+        <li>只需要<strong>快速查找</strong>，不关心顺序</li>
+        <li>频繁的 put/get 操作，追求 <strong>O(1)</strong> 性能</li>
+        <li>缓存、计数器、索引映射</li>
+        <li>Key 可以是 null</li>
+        <li>大部分业务场景的<strong>默认选择</strong></li>
+      </ul>
+    </div>
+    <div class="comp-card">
+      <h3><span style="color:var(--accent2)">🌳</span> 适合用 TreeMap</h3>
+      <ul>
+        <li>需要 key <strong>按顺序排列</strong></li>
+        <li>需要<strong>范围查询</strong>（如查找某个区间的 key）</li>
+        <li>需要快速获取<strong>最小/最大</strong> key</li>
+        <li>需要<strong>排序的 Map</strong>输出</li>
+        <li>排行榜、区间统计、滑动窗口</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 一句话总结 -->
+  <div class="explain-card" style="text-align: center; background: linear-gradient(135deg, rgba(245,158,11,0.05), rgba(16,185,129,0.05));">
+    <p style="font-size: 1.1em; line-height: 2;">
+      <strong style="color: var(--accent);">HashMap</strong>：追求速度，<strong>O(1)</strong> 查找，但无序 &nbsp;|&nbsp;
+      <strong style="color: var(--accent2);">TreeMap</strong>：追求有序，<strong>O(log n)</strong> 查找，支持范围操作
+    </p>
+  </div>
+</div>
+
+<script>
+// ==================== HashMap Simulation ====================
+const BUCKET_COUNT = 16;
+
+class HashMapSim {
+  constructor() {
+    this.buckets = new Array(BUCKET_COUNT).fill(null);
+    this.size = 0;
+    this.collisions = 0;
+  }
+
+  hash(key) {
+    let h = 0;
+    const str = String(key);
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  }
+
+  getIndex(key) {
+    return this.hash(key) % BUCKET_COUNT;
+  }
+
+  put(key, value) {
+    const idx = this.getIndex(key);
+    const entry = { key, value, next: null };
+
+    if (!this.buckets[idx]) {
+      this.buckets[idx] = entry;
+    } else {
+      this.collisions++;
+      // Check if key already exists
+      let curr = this.buckets[idx];
+      while (curr) {
+        if (curr.key === key) {
+          curr.value = value; // update
+          return;
+        }
+        if (!curr.next) break;
+        curr = curr.next;
+      }
+      curr.next = entry;
+    }
+    this.size++;
+  }
+
+  get(key) {
+    const idx = this.getIndex(key);
+    let curr = this.buckets[idx];
+    while (curr) {
+      if (curr.key === key) return curr.value;
+      curr = curr.next;
+    }
+    return null;
+  }
+
+  clear() {
+    this.buckets = new Array(BUCKET_COUNT).fill(null);
+    this.size = 0;
+    this.collisions = 0;
+  }
+
+  maxChainLength() {
+    let max = 0;
+    for (let i = 0; i < BUCKET_COUNT; i++) {
+      let len = 0, curr = this.buckets[i];
+      while (curr) { len++; curr = curr.next; }
+      max = Math.max(max, len);
+    }
+    return max;
+  }
+
+  usedBuckets() {
+    return this.buckets.filter(b => b !== null).length;
+  }
+}
+
+// ==================== TreeMap (Red-Black Tree) Simulation ====================
+const RED = 'RED', BLACK = 'BLACK';
+class NILNode {
+  constructor() { this.val = null; this.color = BLACK; this.left = null; this.right = null; this.parent = null; this.isNil = true; this.key = null; this.value = null; }
+}
+const NIL = new NILNode();
+
+class TNode {
+  constructor(key, value, color = RED) {
+    this.key = key; this.value = value; this.color = color;
+    this.left = NIL; this.right = NIL; this.parent = null;
+  }
+}
+
+class TreeMapSim {
+  constructor() { this.root = null; this.size = 0; this.lastCompared = []; }
+
+  _cmp(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    return String(a).localeCompare(String(b));
+  }
+
+  put(key, value) {
+    this.lastCompared = [];
+    const node = new TNode(key, value, RED);
+
+    if (!this.root) {
+      node.color = BLACK;
+      this.root = node;
+      this.size++;
+      return;
+    }
+
+    let cur = this.root;
+    while (true) {
+      this.lastCompared.push(cur.key);
+      const c = this._cmp(key, cur.key);
+      if (c < 0) {
+        if (cur.left.isNil) { cur.left = node; node.parent = cur; break; }
+        cur = cur.left;
+      } else if (c > 0) {
+        if (cur.right.isNil) { cur.right = node; node.parent = cur; break; }
+        cur = cur.right;
+      } else {
+        cur.value = value; return; // update
+      }
+    }
+    this._fixInsert(node);
+    this.size++;
+  }
+
+  get(key) {
+    this.lastCompared = [];
+    let cur = this.root;
+    while (cur && !cur.isNil) {
+      this.lastCompared.push(cur.key);
+      const c = this._cmp(key, cur.key);
+      if (c < 0) cur = cur.left;
+      else if (c > 0) cur = cur.right;
+      else return cur.value;
+    }
+    return null;
+  }
+
+  _fixInsert(node) {
+    while (node.parent && node.parent.color === RED) {
+      let p = node.parent, g = p.parent;
+      if (p === g.left) {
+        let u = g.right;
+        if (u && u.color === RED) {
+          p.color = BLACK; u.color = BLACK; g.color = RED; node = g;
+        } else {
+          if (node === p.right) { node = p; this._rotL(node); p = node.parent; }
+          p.color = BLACK; g.color = RED; this._rotR(g);
+        }
+      } else {
+        let u = g.left;
+        if (u && u.color === RED) {
+          p.color = BLACK; u.color = BLACK; g.color = RED; node = g;
+        } else {
+          if (node === p.left) { node = p; this._rotR(node); p = node.parent; }
+          p.color = BLACK; g.color = RED; this._rotL(g);
+        }
+      }
+    }
+    this.root.color = BLACK;
+  }
+
+  _rotL(x) {
+    let y = x.right; x.right = y.left;
+    if (y.left && !y.left.isNil) y.left.parent = x;
+    y.parent = x.parent;
+    if (!x.parent) this.root = y;
+    else if (x === x.parent.left) x.parent.left = y;
+    else x.parent.right = y;
+    y.left = x; x.parent = y;
+  }
+
+  _rotR(y) {
+    let x = y.left; y.left = x.right;
+    if (x.right && !x.right.isNil) x.right.parent = y;
+    x.parent = y.parent;
+    if (!y.parent) this.root = x;
+    else if (y === y.parent.right) y.parent.right = x;
+    else y.parent.left = x;
+    x.right = y; y.parent = x;
+  }
+
+  height(n = this.root) {
+    if (!n || n.isNil) return 0;
+    return 1 + Math.max(this.height(n.left), this.height(n.right));
+  }
+
+  collect(n = this.root, r = []) {
+    if (!n || n.isNil) return r;
+    this.collect(n.left, r); r.push(n); this.collect(n.right, r);
+    return r;
+  }
+
+  inOrderKeys() {
+    return this.collect().map(n => n.key);
+  }
+
+  clear() { this.root = null; this.size = 0; this.lastCompared = []; }
+}
+
+// ==================== Canvas Rendering ====================
+const hmCanvas = document.getElementById('hmCanvas');
+const tmCanvas = document.getElementById('tmCanvas');
+const hmCtx = hmCanvas.getContext('2d');
+const tmCtx = tmCanvas.getContext('2d');
+const hm = new HashMapSim();
+const tm = new TreeMapSim();
+let highlightKey = null;
+let highlightTimer = null;
+
+function resizeCanvases() {
+  [hmCanvas, tmCanvas].forEach(c => {
+    const rect = c.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    c.width = rect.width * dpr;
+    c.height = 460 * dpr;
+    c.style.width = rect.width + 'px';
+    c.style.height = '460px';
+    c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  });
+}
+
+// ==================== Draw HashMap ====================
+function drawHashMap() {
+  const w = hmCanvas.width / (window.devicePixelRatio || 1);
+  const h = hmCanvas.height / (window.devicePixelRatio || 1);
+  hmCtx.clearRect(0, 0, w, h);
+
+  if (hm.size === 0) {
+    hmCtx.fillStyle = '#555';
+    hmCtx.font = '15px sans-serif';
+    hmCtx.textAlign = 'center';
+    hmCtx.fillText('插入键值对以查看 HashMap 哈希桶结构', w / 2, h / 2);
+    return;
+  }
+
+  const bucketW = Math.min(50, (w - 40) / BUCKET_COUNT);
+  const startX = (w - bucketW * BUCKET_COUNT) / 2;
+  const startY = 40;
+  const nodeR = 16;
+  const chainSpacing = 38;
+
+  // Draw bucket index labels
+  hmCtx.font = '10px sans-serif';
+  hmCtx.textAlign = 'center';
+  hmCtx.fillStyle = '#666';
+
+  for (let i = 0; i < BUCKET_COUNT; i++) {
+    const x = startX + i * bucketW + bucketW / 2;
+
+    // Bucket index
+    hmCtx.fillStyle = '#555';
+    hmCtx.fillText(i, x, startY - 4);
+
+    // Bucket slot
+    const hasEntry = hm.buckets[i] !== null;
+    hmCtx.beginPath();
+    hmCtx.roundRect(x - bucketW / 2 + 2, startY, bucketW - 4, 24, 4);
+    hmCtx.fillStyle = hasEntry ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.03)';
+    hmCtx.fill();
+    hmCtx.strokeStyle = hasEntry ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.08)';
+    hmCtx.lineWidth = 1;
+    hmCtx.stroke();
+
+    // Draw chain
+    let entry = hm.buckets[i];
+    let cy = startY + 24;
+    while (entry) {
+      cy += chainSpacing;
+      const isHL = highlightKey === entry.key;
+
+      // Arrow from bucket
+      hmCtx.beginPath();
+      hmCtx.moveTo(x, cy - chainSpacing + 2);
+      hmCtx.lineTo(x, cy - nodeR - 2);
+      hmCtx.strokeStyle = isHL ? 'rgba(255,212,59,0.8)' : 'rgba(245,158,11,0.3)';
+      hmCtx.lineWidth = 1.5;
+      hmCtx.stroke();
+
+      // Node circle
+      hmCtx.beginPath();
+      hmCtx.arc(x, cy, nodeR, 0, Math.PI * 2);
+      const grad = hmCtx.createRadialGradient(x - 3, cy - 3, 2, x, cy, nodeR);
+      if (isHL) {
+        grad.addColorStop(0, '#ffd43b');
+        grad.addColorStop(1, '#f59e0b');
+      } else {
+        grad.addColorStop(0, '#fbbf24');
+        grad.addColorStop(1, '#d97706');
+      }
+      hmCtx.fillStyle = grad;
+      hmCtx.fill();
+      hmCtx.strokeStyle = isHL ? '#ffd43b' : '#b45309';
+      hmCtx.lineWidth = isHL ? 2.5 : 1.5;
+      hmCtx.stroke();
+
+      // Key text
+      hmCtx.fillStyle = '#000';
+      hmCtx.font = 'bold 9px sans-serif';
+      hmCtx.textAlign = 'center';
+      hmCtx.textBaseline = 'middle';
+      const displayKey = String(entry.key).length > 3 ? String(entry.key).slice(0, 3) : String(entry.key);
+      hmCtx.fillText(displayKey, x, cy - 3);
+
+      // Value text below
+      hmCtx.fillStyle = '#888';
+      hmCtx.font = '8px sans-serif';
+      hmCtx.fillText('→' + String(entry.value).slice(0, 3), x, cy + 8);
+
+      entry = entry.next;
+    }
+  }
+
+  // Stats
+  document.getElementById('hmStats').innerHTML =
+    `元素: <span style="color:var(--accent)">${hm.size}</span> | ` +
+    `冲突: <span style="color:var(--red)">${hm.collisions}</span> | ` +
+    `最长链: <span style="color:var(--yellow)">${hm.maxChainLength()}</span> | ` +
+    `已用桶: <span style="color:var(--text-dim)">${hm.usedBuckets()}/${BUCKET_COUNT}</span>`;
+}
+
+// ==================== Draw TreeMap ====================
+function drawTreeMap() {
+  const w = tmCanvas.width / (window.devicePixelRatio || 1);
+  const h = tmCanvas.height / (window.devicePixelRatio || 1);
+  tmCtx.clearRect(0, 0, w, h);
+
+  if (!tm.root) {
+    tmCtx.fillStyle = '#555';
+    tmCtx.font = '15px sans-serif';
+    tmCtx.textAlign = 'center';
+    tmCtx.fillText('插入键值对以查看 TreeMap 红黑树结构', w / 2, h / 2);
+    return;
+  }
+
+  const nodes = tm.collect();
+  const nodeR = 18;
+  const levelH = 65;
+  const topPad = 45;
+
+  const positions = new Map();
+  const spacing = w / (nodes.length + 1);
+  nodes.forEach((n, i) => positions.set(n, { x: spacing * (i + 1), y: 0 }));
+
+  const queue = [{ node: tm.root, depth: 0 }];
+  while (queue.length) {
+    const { node, depth } = queue.shift();
+    if (positions.has(node)) positions.get(node).y = topPad + depth * levelH;
+    if (node.left && !node.left.isNil) queue.push({ node: node.left, depth: depth + 1 });
+    if (node.right && !node.right.isNil) queue.push({ node: node.right, depth: depth + 1 });
+  }
+
+  // Draw edges
+  const drawEdge = (parent, child) => {
+    if (!parent || !child || child.isNil) return;
+    const p = positions.get(parent), c = positions.get(child);
+    if (!p || !c) return;
+    tmCtx.beginPath();
+    tmCtx.moveTo(p.x, p.y);
+    tmCtx.lineTo(c.x, c.y);
+    tmCtx.strokeStyle = child.color === RED ? 'rgba(255,107,107,0.35)' : 'rgba(100,100,120,0.3)';
+    tmCtx.lineWidth = 2;
+    tmCtx.stroke();
+  };
+  const traverse = (n) => {
+    if (!n || n.isNil) return;
+    if (n.left && !n.left.isNil) { drawEdge(n, n.left); traverse(n.left); }
+    if (n.right && !n.right.isNil) { drawEdge(n, n.right); traverse(n.right); }
+  };
+  traverse(tm.root);
+
+  // Draw nodes
+  nodes.forEach(node => {
+    const pos = positions.get(node);
+    const isRed = node.color === RED;
+    const isHL = highlightKey === node.key;
+
+    // Shadow
+    tmCtx.beginPath();
+    tmCtx.arc(pos.x, pos.y, nodeR + 2, 0, Math.PI * 2);
+    tmCtx.fillStyle = isRed ? 'rgba(255,107,107,0.15)' : 'rgba(80,80,100,0.2)';
+    tmCtx.fill();
+
+    // Highlight ring
+    if (isHL) {
+      tmCtx.beginPath();
+      tmCtx.arc(pos.x, pos.y, nodeR + 5, 0, Math.PI * 2);
+      tmCtx.strokeStyle = 'rgba(255,212,59,0.6)';
+      tmCtx.lineWidth = 3;
+      tmCtx.stroke();
+    }
+
+    // Node
+    tmCtx.beginPath();
+    tmCtx.arc(pos.x, pos.y, nodeR, 0, Math.PI * 2);
+    const grad = tmCtx.createRadialGradient(pos.x - 3, pos.y - 3, 2, pos.x, pos.y, nodeR);
+    if (isRed) {
+      grad.addColorStop(0, '#ff8787');
+      grad.addColorStop(1, '#cc4444');
+    } else {
+      grad.addColorStop(0, '#555');
+      grad.addColorStop(1, '#2a2a2a');
+    }
+    tmCtx.fillStyle = grad;
+    tmCtx.fill();
+    tmCtx.strokeStyle = isRed ? '#ff6b6b' : '#666';
+    tmCtx.lineWidth = 2;
+    tmCtx.stroke();
+
+    // Key text
+    tmCtx.fillStyle = '#fff';
+    tmCtx.font = 'bold 10px sans-serif';
+    tmCtx.textAlign = 'center';
+    tmCtx.textBaseline = 'middle';
+    const dk = String(node.key).length > 4 ? String(node.key).slice(0, 4) : String(node.key);
+    tmCtx.fillText(dk, pos.x, pos.y - 2);
+
+    // Value below
+    tmCtx.fillStyle = '#999';
+    tmCtx.font = '8px sans-serif';
+    tmCtx.fillText(':' + String(node.value).slice(0, 3), pos.x, pos.y + 9);
+  });
+
+  // In-order traversal display
+  const sortedKeys = tm.inOrderKeys();
+
+  // Stats
+  document.getElementById('tmStats').innerHTML =
+    `元素: <span style="color:var(--accent2)">${tm.size}</span> | ` +
+    `树高: <span style="color:var(--yellow)">${tm.height()}</span> | ` +
+    `有序: <span style="color:var(--green)">[${sortedKeys.join(', ')}]</span>`;
+}
+
+function render() {
+  resizeCanvases();
+  drawHashMap();
+  drawTreeMap();
+}
+
+// ==================== User Actions ====================
+function putEntry() {
+  const keyEl = document.getElementById('keyInput');
+  const valEl = document.getElementById('valInput');
+  const key = keyEl.value.trim();
+  const val = valEl.value.trim() || Math.floor(Math.random() * 100);
+  if (!key) { keyEl.style.borderColor = 'var(--red)'; setTimeout(() => keyEl.style.borderColor = '', 800); return; }
+
+  hm.put(key, val);
+  tm.put(key, val);
+  keyEl.value = '';
+  valEl.value = '';
+  render();
+}
+
+function getEntry() {
+  const keyEl = document.getElementById('keyInput');
+  const key = keyEl.value.trim();
+  if (!key) { keyEl.style.borderColor = 'var(--red)'; setTimeout(() => keyEl.style.borderColor = '', 800); return; }
+
+  highlightKey = key;
+  clearTimeout(highlightTimer);
+
+  const hmVal = hm.get(key);
+  const tmVal = tm.get(key);
+
+  render();
+
+  highlightTimer = setTimeout(() => { highlightKey = null; render(); }, 2000);
+
+  const hmResult = hmVal !== null ? `<span style="color:var(--green)">✓ 找到: ${hmVal}</span>` : `<span style="color:var(--red)">✗ 未找到</span>`;
+  const tmResult = tmVal !== null ? `<span style="color:var(--green)">✓ 找到: ${tmVal}</span>` : `<span style="color:var(--red)">✗ 未找到</span>`;
+
+  // Show results in stats
+  document.getElementById('hmStats').innerHTML += ` | Get("${key}"): ${hmResult}`;
+  document.getElementById('tmStats').innerHTML += ` | Get("${key}"): ${tmResult}`;
+}
+
+function putRandom() {
+  const names = ['apple','banana','cherry','date','elderberry','fig','grape','kiwi','lemon','mango','orange','peach','plum','berry','melon','pear','lime','olive','guava','papaya'];
+  const key = names[Math.floor(Math.random() * names.length)];
+  const val = Math.floor(Math.random() * 100);
+  hm.put(key, val);
+  tm.put(key, val);
+  render();
+}
+
+function clearAll() {
+  hm.clear();
+  tm.clear();
+  highlightKey = null;
+  render();
+}
+
+function runDemo() {
+  clearAll();
+  const entries = [
+    ['banana', 2], ['apple', 5], ['cherry', 8], ['date', 3],
+    ['elderberry', 1], ['fig', 7], ['grape', 4], ['kiwi', 6]
+  ];
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i >= entries.length) { clearInterval(interval); return; }
+    const [k, v] = entries[i];
+    hm.put(k, v);
+    tm.put(k, v);
+    render();
+    i++;
+  }, 500);
+}
+
+// Enter key
+document.getElementById('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') putEntry(); });
+document.getElementById('valInput').addEventListener('keydown', e => { if (e.key === 'Enter') putEntry(); });
+
+window.addEventListener('resize', render);
+render();
+</script>
+
+</body>
+</html>
