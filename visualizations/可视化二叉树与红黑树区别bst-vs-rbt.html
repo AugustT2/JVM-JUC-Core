@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二叉搜索树 vs 红黑树 — 可视化对比</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d28;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --text-dim: #8b8b9e;
+    --accent: #6c5ce7;
+    --accent2: #00cec9;
+    --red: #ff6b6b;
+    --green: #51cf66;
+    --yellow: #ffd43b;
+    --blue: #339af0;
+    --orange: #ff922b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 32px 20px 16px;
+    background: linear-gradient(135deg, #1a1d28 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 2em;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p { color: var(--text-dim); font-size: 0.95em; }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    flex-wrap: wrap;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }
+  .controls input {
+    width: 120px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1em;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .controls input:focus { border-color: var(--accent); }
+  .controls button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #fff;
+  }
+  .btn-insert { background: var(--accent); }
+  .btn-insert:hover { background: #7c6cf7; transform: translateY(-1px); }
+  .btn-random { background: var(--accent2); }
+  .btn-random:hover { background: #20d6d1; transform: translateY(-1px); }
+  .btn-clear { background: #555; }
+  .btn-clear:hover { background: #666; transform: translateY(-1px); }
+  .btn-demo { background: var(--orange); }
+  .btn-demo:hover { background: #ffa34d; transform: translateY(-1px); }
+
+  /* Tree containers */
+  .trees-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 420px;
+  }
+  .tree-panel {
+    position: relative;
+    border-right: 1px solid var(--border);
+  }
+  .tree-panel:last-child { border-right: none; }
+  .tree-panel canvas {
+    display: block;
+    width: 100%;
+    height: 420px;
+  }
+  .tree-label {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 1.1em;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    z-index: 2;
+  }
+  .label-bst { background: rgba(108,92,231,0.2); color: var(--accent); border: 1px solid var(--accent); }
+  .label-rbt { background: rgba(0,206,201,0.2); color: var(--accent2); border: 1px solid var(--accent2); }
+  .tree-stats {
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    font-size: 0.8em;
+    color: var(--text-dim);
+    z-index: 2;
+  }
+  .tree-stats span { margin-right: 14px; }
+
+  /* Info section */
+  .info-section {
+    padding: 32px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .info-section h2 {
+    font-size: 1.4em;
+    margin-bottom: 20px;
+    color: var(--accent2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .info-section h2::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 24px;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .comp-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s;
+  }
+  .comp-card:hover { transform: translateY(-2px); }
+  .comp-card h3 {
+    font-size: 1.1em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .comp-card h3 .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .comp-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .comp-card ul li {
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.9em;
+    line-height: 1.6;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .comp-card ul li:last-child { border-bottom: none; }
+  .comp-card ul li::before {
+    content: '•';
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  /* Properties table */
+  .props-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .props-table th, .props-table td {
+    padding: 14px 18px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9em;
+  }
+  .props-table th {
+    background: rgba(108,92,231,0.1);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .props-table td { color: var(--text); }
+  .props-table tr:last-child td { border-bottom: none; }
+  .props-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* RB properties */
+  .rb-rules {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 32px;
+  }
+  .rb-rules h3 {
+    font-size: 1.1em;
+    margin-bottom: 16px;
+    color: var(--red);
+  }
+  .rb-rules ol {
+    padding-left: 20px;
+  }
+  .rb-rules ol li {
+    padding: 8px 0;
+    font-size: 0.9em;
+    line-height: 1.7;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .rb-rules ol li:last-child { border-bottom: none; }
+  .rb-rules ol li strong { color: var(--yellow); }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 12px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    font-size: 0.85em;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+  .legend-dot.red-node { background: var(--red); border-color: #cc5555; }
+  .legend-dot.black-node { background: #333; border-color: #555; }
+  .legend-dot.nil-node { background: transparent; border-color: #555; border-style: dashed; }
+  .legend-dot.bst-node { background: var(--accent); border-color: #5a4bd4; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .trees-container { grid-template-columns: 1fr; }
+    .tree-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.5em; }
+  }
+
+  /* Animation */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .info-section { animation: fadeIn 0.6s ease-out; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌳 二叉搜索树 vs 红黑树</h1>
+  <p>交互式可视化对比 — 输入数字，观察两种树的不同行为</p>
+</div>
+
+<div class="controls">
+  <input type="number" id="nodeInput" placeholder="输入数字" min="1" max="999">
+  <button class="btn-insert" onclick="insertNode()">插入节点</button>
+  <button class="btn-random" onclick="insertRandom()">随机插入</button>
+  <button class="btn-demo" onclick="runDemo()">演示退化</button>
+  <button class="btn-clear" onclick="clearTrees()">清空</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot bst-node"></div> BST 节点</div>
+  <div class="legend-item"><div class="legend-dot red-node"></div> 红黑树 - 红节点</div>
+  <div class="legend-item"><div class="legend-dot black-node"></div> 红黑树 - 黑节点</div>
+  <div class="legend-item"><div class="legend-dot nil-node"></div> NIL 叶节点</div>
+</div>
+
+<div class="trees-container">
+  <div class="tree-panel">
+    <div class="tree-label label-bst">二叉搜索树 (BST)</div>
+    <canvas id="bstCanvas"></canvas>
+    <div class="tree-stats" id="bstStats"></div>
+  </div>
+  <div class="tree-panel">
+    <div class="tree-label label-rbt">红黑树 (RBT)</div>
+    <canvas id="rbtCanvas"></canvas>
+    <div class="tree-stats" id="rbtStats"></div>
+  </div>
+</div>
+
+<div class="info-section">
+  <h2>核心区别</h2>
+  <div class="comparison-grid">
+    <div class="comp-card">
+      <h3><span class="dot" style="background:var(--accent)"></span>二叉搜索树 (BST)</h3>
+      <ul>
+        <li>每个节点最多有两个子节点</li>
+        <li>左子树所有值 &lt; 根节点 &lt; 右子树所有值</li>
+        <li><strong>无平衡约束</strong>，可能退化为链表</li>
+        <li>最优情况：查找 O(log n)</li>
+        <li>最差情况：查找 O(n)（退化为链表）</li>
+        <li>插入/删除简单，无需额外旋转操作</li>
+      </ul>
+    </div>
+    <div class="comp-card">
+      <h3><span class="dot" style="background:var(--accent2)"></span>红黑树 (Red-Black Tree)</h3>
+      <ul>
+        <li>BST 的<strong>自平衡变体</strong></li>
+        <li>每个节点增加颜色属性（红/黑）</li>
+        <li>通过<strong>旋转和变色</strong>维持平衡</li>
+        <li>保证树高 ≤ 2·log₂(n+1)</li>
+        <li>查找始终 O(log n)</li>
+        <li>插入/删除后需修复（旋转+变色）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>性能对比</h2>
+  <table class="props-table">
+    <thead>
+      <tr><th>操作</th><th>二叉搜索树 (BST)</th><th>红黑树 (RBT)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>查找</td><td>平均 O(log n) / 最差 O(n)</td><td>始终 O(log n)</td></tr>
+      <tr><td>插入</td><td>平均 O(log n) / 最差 O(n)</td><td>O(log n)</td></tr>
+      <tr><td>删除</td><td>平均 O(log n) / 最差 O(n)</td><td>O(log n)</td></tr>
+      <tr><td>空间</td><td>O(n)</td><td>O(n)（多一个颜色位）</td></tr>
+      <tr><td>实现复杂度</td><td>简单</td><td>较复杂（需旋转+变色）</td></tr>
+      <tr><td>适用场景</td><td>数据基本有序时表现差</td><td>通用平衡树，广泛用于标准库</td></tr>
+    </tbody>
+  </table>
+
+  <h2>红黑树的五大性质</h2>
+  <div class="rb-rules">
+    <h3>🔴⚫ 红黑树必须同时满足以下条件</h3>
+    <ol>
+      <li>每个节点要么是<strong>红色</strong>，要么是<strong>黑色</strong></li>
+      <li><strong>根节点</strong>必须是黑色</li>
+      <li>每个<strong>NIL 叶节点</strong>（空节点）是黑色</li>
+      <li>红色节点的<strong>两个子节点</strong>必须是黑色（不能有连续红节点）</li>
+      <li>从任一节点到其每个叶子的所有路径都包含<strong>相同数目的黑色节点</strong>（黑高相同）</li>
+    </ol>
+  </div>
+
+  <h2>🔴⚫ 为什么是红色和黑色？</h2>
+  <div class="rb-rules" style="margin-bottom: 32px;">
+    <h3 style="color: var(--yellow);">颜色不是目的，而是手段</h3>
+    <p style="margin-bottom: 16px; line-height: 1.8; font-size: 0.92em;">
+      红黑树中的<strong style="color: var(--red);">红色</strong>和<strong style="color: #888;">黑色</strong>并不代表节点的大小、优先级或任何业务含义——它们纯粹是<strong style="color: var(--accent2);">辅助维持平衡的标记位</strong>。你可以把每个节点想象成贴了一张小标签，写着"红"或"黑"，用来帮助树在插入/删除后自动调整结构。
+    </p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div style="background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.2); border-radius: 10px; padding: 16px;">
+        <h4 style="color: var(--red); margin-bottom: 8px; font-size: 0.95em;">🔴 红色节点的含义</h4>
+        <ul style="list-style: none; padding: 0; font-size: 0.88em; line-height: 1.8;">
+          <li>• 表示"这个节点是新插入的，或刚被调整过"</li>
+          <li>• 红色节点的子节点<strong style="color: var(--yellow);">必须是黑色</strong>（不能连续两个红）</li>
+          <li>• 红色节点相当于"粘"在黑色父节点上的额外键</li>
+        </ul>
+      </div>
+      <div style="background: rgba(100,100,120,0.08); border: 1px solid rgba(100,100,120,0.2); border-radius: 10px; padding: 16px;">
+        <h4 style="color: #aaa; margin-bottom: 8px; font-size: 0.95em;">⚫ 黑色节点的含义</h4>
+        <ul style="list-style: none; padding: 0; font-size: 0.88em; line-height: 1.8;">
+          <li>• 黑色节点是"真正的结构节点"</li>
+          <li>• 从任一节点到叶子的所有路径，<strong style="color: var(--yellow);">黑节点数量相同</strong></li>
+          <li>• 黑色节点数量定义了树的<strong style="color: var(--accent2);">黑高（black-height）</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div style="background: rgba(108,92,231,0.08); border: 1px solid rgba(108,92,231,0.2); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+      <h4 style="color: var(--accent); margin-bottom: 8px; font-size: 0.95em;">💡 关键推导：为什么颜色能保证 O(log n)？</h4>
+      <p style="font-size: 0.88em; line-height: 1.9;">
+        两条规则联合起来产生了一个强大的数学结论——<strong style="color: var(--accent2);">最长路径最多是最短路径的 2 倍</strong>：<br>
+        <span style="color: var(--text-dim);">• 最短路径：全黑节点（黑-黑-黑-黑...）</span><br>
+        <span style="color: var(--text-dim);">• 最长路径：红黑交替（黑-红-黑-红-黑-红...），因为不能有连续红节点</span><br>
+        因此树高被严格限制在 <strong style="color: var(--yellow);">2·log₂(n+1)</strong> 以内，永远不会退化成链表。
+      </p>
+    </div>
+    <div style="background: rgba(0,206,201,0.06); border: 1px solid rgba(0,206,201,0.15); border-radius: 10px; padding: 16px;">
+      <h4 style="color: var(--accent2); margin-bottom: 8px; font-size: 0.95em;">📚 历史渊源</h4>
+      <p style="font-size: 0.88em; line-height: 1.9;">
+        红黑树由 <strong>Rudolf Bayer</strong> 于 1972 年提出（最初称为"对称二叉 B 树"）。<strong>Guibas 和 Sedgewick</strong> 在 1978 年引入了红/黑着色方案来简化描述。本质上，<strong style="color: var(--yellow);">红黑树等价于一棵 2-3-4 B 树</strong>——黑色节点对应 B 树的键，红色节点对应"粘"在父节点上的额外键。选择红色和黑色是因为它们对比最强烈，在图示和代码中一目了然。
+      </p>
+    </div>
+  </div>
+
+  <h2>为什么需要红黑树？</h2>
+  <div class="comparison-grid">
+    <div class="comp-card">
+      <h3>⚠️ BST 的退化问题</h3>
+      <ul>
+        <li>按顺序插入 1,2,3,4,5 → BST 退化为链表</li>
+        <li>查找 5 需要遍历所有节点，时间 O(n)</li>
+        <li>与链表无异，完全失去二叉树优势</li>
+      </ul>
+    </div>
+    <div class="comp-card">
+      <h3>✅ 红黑树的优势</h3>
+      <ul>
+        <li>同样的输入 → 红黑树通过旋转保持平衡</li>
+        <li>树高被严格限制在 2·log₂(n+1) 以内</li>
+        <li>最差情况仍有 O(log n) 性能保证</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== BST Implementation ====================
+class BSTNode {
+  constructor(val) {
+    this.val = val;
+    this.left = null;
+    this.right = null;
+  }
+}
+
+class BST {
+  constructor() { this.root = null; this.count = 0; }
+
+  insert(val) {
+    this.root = this._insert(this.root, val);
+    this.count++;
+  }
+
+  _insert(node, val) {
+    if (!node) return new BSTNode(val);
+    if (val < node.val) node.left = this._insert(node.left, val);
+    else if (val > node.val) node.right = this._insert(node.right, val);
+    return node;
+  }
+
+  height(node = this.root) {
+    if (!node) return 0;
+    return 1 + Math.max(this.height(node.left), this.height(node.right));
+  }
+
+  // In-order traversal for layout
+  inOrder(node = this.root, result = []) {
+    if (!node) return result;
+    this.inOrder(node.left, result);
+    result.push(node);
+    this.inOrder(node.right, result);
+    return result;
+  }
+}
+
+// ==================== Red-Black Tree Implementation ====================
+const RED = 'RED', BLACK = 'BLACK';
+
+class RBTNode {
+  constructor(val, color = RED) {
+    this.val = val;
+    this.color = color;
+    this.left = null;
+    this.right = null;
+    this.parent = null;
+  }
+}
+
+class NILNode {
+  constructor() {
+    this.val = null;
+    this.color = BLACK;
+    this.left = null;
+    this.right = null;
+    this.parent = null;
+    this.isNil = true;
+  }
+}
+
+const NIL = new NILNode();
+
+class RBT {
+  constructor() { this.root = null; this.count = 0; }
+
+  insert(val) {
+    let node = new RBTNode(val, RED);
+    node.left = NIL;
+    node.right = NIL;
+
+    if (!this.root) {
+      node.color = BLACK;
+      this.root = node;
+      this.count++;
+      return;
+    }
+
+    let current = this.root;
+    while (true) {
+      if (val < current.val) {
+        if (current.left.isNil) {
+          current.left = node;
+          node.parent = current;
+          break;
+        }
+        current = current.left;
+      } else if (val > current.val) {
+        if (current.right.isNil) {
+          current.right = node;
+          node.parent = current;
+          break;
+        }
+        current = current.right;
+      } else {
+        return; // duplicate
+      }
+    }
+
+    this._fixInsert(node);
+    this.count++;
+  }
+
+  _fixInsert(node) {
+    while (node.parent && node.parent.color === RED) {
+      let parent = node.parent;
+      let grandparent = parent.parent;
+
+      if (parent === grandparent.left) {
+        let uncle = grandparent.right;
+        if (uncle && uncle.color === RED) {
+          // Case 1: Uncle is red → recolor
+          parent.color = BLACK;
+          uncle.color = BLACK;
+          grandparent.color = RED;
+          node = grandparent;
+        } else {
+          if (node === parent.right) {
+            // Case 2: Uncle is black, node is right child → left rotate
+            node = parent;
+            this._leftRotate(node);
+            parent = node.parent;
+          }
+          // Case 3: Uncle is black, node is left child → right rotate + recolor
+          parent.color = BLACK;
+          grandparent.color = RED;
+          this._rightRotate(grandparent);
+        }
+      } else {
+        let uncle = grandparent.left;
+        if (uncle && uncle.color === RED) {
+          parent.color = BLACK;
+          uncle.color = BLACK;
+          grandparent.color = RED;
+          node = grandparent;
+        } else {
+          if (node === parent.left) {
+            node = parent;
+            this._rightRotate(node);
+            parent = node.parent;
+          }
+          parent.color = BLACK;
+          grandparent.color = RED;
+          this._leftRotate(grandparent);
+        }
+      }
+    }
+    this.root.color = BLACK;
+  }
+
+  _leftRotate(x) {
+    let y = x.right;
+    x.right = y.left;
+    if (y.left && !y.left.isNil) y.left.parent = x;
+    y.parent = x.parent;
+    if (!x.parent) this.root = y;
+    else if (x === x.parent.left) x.parent.left = y;
+    else x.parent.right = y;
+    y.left = x;
+    x.parent = y;
+  }
+
+  _rightRotate(y) {
+    let x = y.left;
+    y.left = x.right;
+    if (x.right && !x.right.isNil) x.right.parent = y;
+    x.parent = y.parent;
+    if (!y.parent) this.root = x;
+    else if (y === y.parent.right) y.parent.right = x;
+    else y.parent.left = x;
+    x.right = y;
+    y.parent = x;
+  }
+
+  height(node = this.root) {
+    if (!node || node.isNil) return 0;
+    return 1 + Math.max(this.height(node.left), this.height(node.right));
+  }
+
+  blackHeight(node = this.root) {
+    if (!node || node.isNil) return 1;
+    let left = this.blackHeight(node.left);
+    let right = this.blackHeight(node.right);
+    return left + (node.color === BLACK ? 1 : 0);
+  }
+
+  // Collect non-NIL nodes
+  collect(node = this.root, result = []) {
+    if (!node || node.isNil) return result;
+    this.collect(node.left, result);
+    result.push(node);
+    this.collect(node.right, result);
+    return result;
+  }
+}
+
+// ==================== Canvas Rendering ====================
+const bstCanvas = document.getElementById('bstCanvas');
+const rbtCanvas = document.getElementById('rbtCanvas');
+const bstCtx = bstCanvas.getContext('2d');
+const rbtCtx = rbtCanvas.getContext('2d');
+
+const bst = new BST();
+const rbt = new RBT();
+
+function resizeCanvases() {
+  [bstCanvas, rbtCanvas].forEach(c => {
+    const rect = c.parentElement.getBoundingClientRect();
+    c.width = rect.width * window.devicePixelRatio;
+    c.height = 420 * window.devicePixelRatio;
+    c.style.width = rect.width + 'px';
+    c.style.height = '420px';
+    c.getContext('2d').scale(window.devicePixelRatio, window.devicePixelRatio);
+  });
+}
+
+function drawBST() {
+  const w = bstCanvas.width / window.devicePixelRatio;
+  const h = bstCanvas.height / window.devicePixelRatio;
+  bstCtx.clearRect(0, 0, w, h);
+
+  if (!bst.root) {
+    bstCtx.fillStyle = '#555';
+    bstCtx.font = '16px sans-serif';
+    bstCtx.textAlign = 'center';
+    bstCtx.fillText('插入节点以查看二叉搜索树结构', w / 2, h / 2);
+    return;
+  }
+
+  const nodes = bst.inOrder();
+  const nodeRadius = 20;
+  const levelHeight = 70;
+  const topPadding = 50;
+
+  // Assign x by in-order index, y by depth
+  const positions = new Map();
+  const spacing = w / (nodes.length + 1);
+
+  nodes.forEach((n, i) => {
+    positions.set(n, { x: spacing * (i + 1), y: 0 });
+  });
+
+  // Assign y by depth using BFS
+  const queue = [{ node: bst.root, depth: 0 }];
+  while (queue.length) {
+    const { node, depth } = queue.shift();
+    if (positions.has(node)) {
+      positions.get(node).y = topPadding + depth * levelHeight;
+    }
+    if (node.left) queue.push({ node: node.left, depth: depth + 1 });
+    if (node.right) queue.push({ node: node.right, depth: depth + 1 });
+  }
+
+  // Draw edges
+  const drawEdge = (parent, child) => {
+    if (!parent || !child) return;
+    const p = positions.get(parent);
+    const c = positions.get(child);
+    if (!p || !c) return;
+    bstCtx.beginPath();
+    bstCtx.moveTo(p.x, p.y);
+    bstCtx.lineTo(c.x, c.y);
+    bstCtx.strokeStyle = 'rgba(108,92,231,0.4)';
+    bstCtx.lineWidth = 2;
+    bstCtx.stroke();
+  };
+
+  const traverseEdges = (node) => {
+    if (!node) return;
+    if (node.left) { drawEdge(node, node.left); traverseEdges(node.left); }
+    if (node.right) { drawEdge(node, node.right); traverseEdges(node.right); }
+  };
+  traverseEdges(bst.root);
+
+  // Draw nodes
+  nodes.forEach(node => {
+    const pos = positions.get(node);
+    // Shadow
+    bstCtx.beginPath();
+    bstCtx.arc(pos.x, pos.y, nodeRadius + 2, 0, Math.PI * 2);
+    bstCtx.fillStyle = 'rgba(108,92,231,0.2)';
+    bstCtx.fill();
+
+    // Node circle
+    bstCtx.beginPath();
+    bstCtx.arc(pos.x, pos.y, nodeRadius, 0, Math.PI * 2);
+    const grad = bstCtx.createRadialGradient(pos.x - 4, pos.y - 4, 2, pos.x, pos.y, nodeRadius);
+    grad.addColorStop(0, '#8b7cf7');
+    grad.addColorStop(1, '#5a4bd4');
+    bstCtx.fillStyle = grad;
+    bstCtx.fill();
+    bstCtx.strokeStyle = '#7c6cf7';
+    bstCtx.lineWidth = 2;
+    bstCtx.stroke();
+
+    // Text
+    bstCtx.fillStyle = '#fff';
+    bstCtx.font = 'bold 13px sans-serif';
+    bstCtx.textAlign = 'center';
+    bstCtx.textBaseline = 'middle';
+    bstCtx.fillText(node.val, pos.x, pos.y);
+  });
+
+  // Stats
+  document.getElementById('bstStats').innerHTML =
+    `节点: <span style="color:var(--accent)">${bst.count}</span> | ` +
+    `树高: <span style="color:var(--yellow)">${bst.height()}</span>`;
+}
+
+function drawRBT() {
+  const w = rbtCanvas.width / window.devicePixelRatio;
+  const h = rbtCanvas.height / window.devicePixelRatio;
+  rbtCtx.clearRect(0, 0, w, h);
+
+  if (!rbt.root) {
+    rbtCtx.fillStyle = '#555';
+    rbtCtx.font = '16px sans-serif';
+    rbtCtx.textAlign = 'center';
+    rbtCtx.fillText('插入节点以查看红黑树结构', w / 2, h / 2);
+    return;
+  }
+
+  const nodes = rbt.collect();
+  const nodeRadius = 20;
+  const levelHeight = 70;
+  const topPadding = 50;
+
+  const positions = new Map();
+  const spacing = w / (nodes.length + 1);
+
+  nodes.forEach((n, i) => {
+    positions.set(n, { x: spacing * (i + 1), y: 0 });
+  });
+
+  const queue = [{ node: rbt.root, depth: 0 }];
+  while (queue.length) {
+    const { node, depth } = queue.shift();
+    if (positions.has(node)) {
+      positions.get(node).y = topPadding + depth * levelHeight;
+    }
+    if (node.left && !node.left.isNil) queue.push({ node: node.left, depth: depth + 1 });
+    if (node.right && !node.right.isNil) queue.push({ node: node.right, depth: depth + 1 });
+  }
+
+  // Draw edges
+  const drawEdge = (parent, child) => {
+    if (!parent || !child || child.isNil) return;
+    const p = positions.get(parent);
+    const c = positions.get(child);
+    if (!p || !c) return;
+    rbtCtx.beginPath();
+    rbtCtx.moveTo(p.x, p.y);
+    rbtCtx.lineTo(c.x, c.y);
+    rbtCtx.strokeStyle = child.color === RED ? 'rgba(255,107,107,0.4)' : 'rgba(100,100,120,0.4)';
+    rbtCtx.lineWidth = 2;
+    rbtCtx.stroke();
+  };
+
+  const traverseEdges = (node) => {
+    if (!node || node.isNil) return;
+    if (node.left && !node.left.isNil) { drawEdge(node, node.left); traverseEdges(node.left); }
+    if (node.right && !node.right.isNil) { drawEdge(node, node.right); traverseEdges(node.right); }
+  };
+  traverseEdges(rbt.root);
+
+  // Draw nodes
+  nodes.forEach(node => {
+    const pos = positions.get(node);
+    const isRed = node.color === RED;
+
+    // Shadow
+    rbtCtx.beginPath();
+    rbtCtx.arc(pos.x, pos.y, nodeRadius + 2, 0, Math.PI * 2);
+    rbtCtx.fillStyle = isRed ? 'rgba(255,107,107,0.2)' : 'rgba(80,80,100,0.3)';
+    rbtCtx.fill();
+
+    // Node circle
+    rbtCtx.beginPath();
+    rbtCtx.arc(pos.x, pos.y, nodeRadius, 0, Math.PI * 2);
+    const grad = rbtCtx.createRadialGradient(pos.x - 4, pos.y - 4, 2, pos.x, pos.y, nodeRadius);
+    if (isRed) {
+      grad.addColorStop(0, '#ff8787');
+      grad.addColorStop(1, '#cc4444');
+    } else {
+      grad.addColorStop(0, '#555');
+      grad.addColorStop(1, '#2a2a2a');
+    }
+    rbtCtx.fillStyle = grad;
+    rbtCtx.fill();
+    rbtCtx.strokeStyle = isRed ? '#ff6b6b' : '#666';
+    rbtCtx.lineWidth = 2;
+    rbtCtx.stroke();
+
+    // Text
+    rbtCtx.fillStyle = '#fff';
+    rbtCtx.font = 'bold 13px sans-serif';
+    rbtCtx.textAlign = 'center';
+    rbtCtx.textBaseline = 'middle';
+    rbtCtx.fillText(node.val, pos.x, pos.y);
+  });
+
+  // Stats
+  document.getElementById('rbtStats').innerHTML =
+    `节点: <span style="color:var(--accent2)">${rbt.count}</span> | ` +
+    `树高: <span style="color:var(--yellow)">${rbt.height()}</span> | ` +
+    `黑高: <span style="color:var(--text-dim)">${rbt.blackHeight()}</span>`;
+}
+
+function render() {
+  resizeCanvases();
+  drawBST();
+  drawRBT();
+}
+
+// ==================== User Actions ====================
+function insertNode() {
+  const input = document.getElementById('nodeInput');
+  const val = parseInt(input.value);
+  if (isNaN(val) || val < 1 || val > 999) {
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => input.style.borderColor = '', 800);
+    return;
+  }
+  bst.insert(val);
+  rbt.insert(val);
+  input.value = '';
+  render();
+}
+
+function insertRandom() {
+  const val = Math.floor(Math.random() * 99) + 1;
+  bst.insert(val);
+  rbt.insert(val);
+  render();
+}
+
+function clearTrees() {
+  bst.root = null;
+  bst.count = 0;
+  rbt.root = null;
+  rbt.count = 0;
+  render();
+}
+
+function runDemo() {
+  clearTrees();
+  // Insert sequential numbers to show BST degeneration
+  const vals = [10, 20, 30, 40, 50, 25, 5, 15, 35, 45];
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i >= vals.length) {
+      clearInterval(interval);
+      return;
+    }
+    bst.insert(vals[i]);
+    rbt.insert(vals[i]);
+    render();
+    i++;
+  }, 400);
+}
+
+// Enter key support
+document.getElementById('nodeInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') insertNode();
+});
+
+// Initial render
+window.addEventListener('resize', render);
+render();
+</script>
+
+</body>
+</html>
